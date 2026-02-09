@@ -38,7 +38,7 @@ ai:
                   2. 不要使用 Markdown 代码块（如 ```xml ... ```）。
                   3. 不要包含任何解释、前言或结束语。
                   4. 确保 XML 结构完整，可以直接被 draw.io 组件加载。
-                  5. 图表布局要美观、清晰。
+                  5. 图表布局要美观、清晰，确保连线不要交叉。
             runner:
               agent-name: onlyAgent
               plugin-name-list:
