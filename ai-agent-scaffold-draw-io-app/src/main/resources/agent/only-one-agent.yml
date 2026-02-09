@@ -27,9 +27,6 @@ ai:
               tool-skills-list:
                 - type: resource
                   path: agent/skills
-
-#                - type: directory
-#                  path: /Users/fuzhengwei/coding/gitcode/KnowledgePlanet/ai-agent-scaffold/ai-agent-scaffold-lite/docs/dev-ops/agent/skills
             agents:
               - name: onlyAgent
                 description: 小傅哥学习项目计划
