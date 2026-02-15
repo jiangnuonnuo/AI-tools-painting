@@ -7,6 +7,7 @@ import cn.bugstack.ai.domain.agent.model.valobj.AiAgentConfigTableVO;
 import cn.bugstack.ai.domain.agent.service.IChatService;
 import cn.bugstack.ai.types.enums.ResponseCode;
 import cn.bugstack.ai.types.exception.AppException;
+import com.alibaba.fastjson.JSON;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter;
@@ -117,7 +118,24 @@ public class AgentServiceController implements IAgentService {
             List<String> messages = chatService.handleMessage(requestDTO.getAgentId(), requestDTO.getUserId(), sessionId, requestDTO.getMessage());
 
             ChatResponseDTO responseDTO = new ChatResponseDTO();
-            responseDTO.setContent(String.join("\n", messages));
+            try {
+                // 尝试获取最后一条消息并解析
+                String result = messages.stream().reduce((first, second) -> second).orElse("");
+                ChatResponseDTO parsed = JSON.parseObject(result, ChatResponseDTO.class);
+                if (null != parsed) {
+                    responseDTO = parsed;
+                    // 如果解析后的对象 type 为空，则默认为 user
+                    if (null == responseDTO.getType()) {
+                        responseDTO.setType("user");
+                    }
+                } else {
+                    responseDTO.setType("user");
+                    responseDTO.setContent(String.join("\n", messages));
+                }
+            } catch (Exception e) {
+                responseDTO.setType("user");
+                responseDTO.setContent(String.join("\n", messages));
+            }
 
             return Response.<ChatResponseDTO>builder()
                     .code(ResponseCode.SUCCESS.getCode())
