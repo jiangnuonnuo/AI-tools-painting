@@ -6,8 +6,8 @@ ai:
           app-name: drawIoAgent
           agent:
             agent-id: 300000
-            agent-name: drawIoAgent
-            agent-desc: 智能绘图助手，支持Draw.io图表生成
+            agent-name: AI交互式绘图智能体
+            agent-desc: 人 + AI + Draw.io，交互式对话完成 draw.io 绘图。
           module:
             ai-api:
               base-url: https://apis.itedus.cn
