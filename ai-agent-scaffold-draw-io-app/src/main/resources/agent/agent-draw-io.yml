@@ -69,7 +69,7 @@ ai:
                 output-key: final_result
 
             agent-workflows:
-              # 定义一个循环工作流（示例），用于反复优化绘图（需要在 instruction 中支持反馈机制才能生效）
+              # 案例；定义一个循环工作流（示例），用于反复优化绘图（需要在 instruction 中支持反馈机制才能生效）
               - type: loop
                 name: loop_refinement
                 description: 循环优化绘图结果
@@ -78,7 +78,7 @@ ai:
                   - agent_drawer
                   - agent_reviewer
 
-              # 定义一个并行工作流（示例），可以并行生成多个方案（需要后续有 Agent 进行选择）
+              # 案例；定义一个并行工作流（示例），可以并行生成多个方案（需要后续有 Agent 进行选择）
               - type: parallel
                 name: parallel_generation
                 description: 并行生成多个绘图方案
@@ -86,7 +86,7 @@ ai:
                   - agent_drawer
                   - agent_drawer
 
-              # 定义一个串行工作流，按顺序执行分析、绘图、检查
+              # 对外；定义一个串行工作流，按顺序执行分析、绘图、检查
               - type: sequential
                 name: sequential_draw_process
                 description: 标准绘图流程：分析 -> 绘图 -> 检查
