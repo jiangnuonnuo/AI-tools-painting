@@ -145,7 +145,7 @@
     </dependencies>
 
     <build>
-        <finalName>ai-agent-scaffold-lite-app</finalName>
+        <finalName>ai-agent-scaffold-draw-io-app</finalName>
         <resources>
             <resource>
                 <directory>src/main/resources</directory>

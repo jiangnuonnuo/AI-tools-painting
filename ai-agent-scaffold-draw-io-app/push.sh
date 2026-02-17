@@ -7,9 +7,9 @@ set -e
 
 # Define variables for the registry and image
 ALIYUN_REGISTRY="registry.cn-hangzhou.aliyuncs.com"
-NAMESPACE="system"
-IMAGE_NAME="ai-agent-scaffold-lite-app"
-IMAGE_TAG="1.0"
+NAMESPACE="fuzhengwei"
+IMAGE_NAME="ai-draw-io-app"
+IMAGE_TAG="1.3"
 
 # 读取本地配置文件
 if [ -f ".local-config" ]; then
