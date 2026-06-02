@@ -11,7 +11,7 @@ ai:
           module:
             ai-api:
               base-url: https://apis.itedus.cn
-              api-key: sk-rcGB6tAE0TSOqZ4oE7Ee2f60A4Bd499eB4F6B0Ab3dBbBeC4
+              api-key: sk-Q87MCKzQZF9bItdG63974e380835442a85C0E6E960F10816
               completions-path: v1/chat/completions
               embeddings-path: v1/embeddings
             chat-model:

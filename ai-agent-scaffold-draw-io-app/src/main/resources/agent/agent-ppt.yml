@@ -1,0 +1,125 @@
+ai:
+  agent:
+    config:
+      tables:
+        pptAgent:
+          app-name: pptAgent
+          agent:
+            agent-id: 300001
+            agent-name: AI交互式PPT生成智能体
+            agent-desc: 人 + AI + PptxGenJS，交互式对话完成 PPT 演示文稿生成。
+          module:
+            ai-api:
+              base-url: https://apis.itedus.cn
+              api-key: sk-Q87MCKzQZF9bItdG63974e380835442a85C0E6E960F10816
+              completions-path: v1/chat/completions
+              embeddings-path: v1/embeddings
+            chat-model:
+              model: gpt-4.1
+              tool-mcp-list:
+                - sse:
+                    name: baidu-search
+                    base-uri: http://appbuilder.baidu.com/v2/ai_search/mcp/
+                    sse-endpoint: sse?api_key=bce-v3/ALTAK-WjK8NIh3txZo7rXXEjhri/e2f09d53de961bcaf2609b76c7c7a7e6d0f05da3
+                    request-timeout: 500000
+              # PPT设计技能包：布局模板 + 配色理论 + 排版规范
+              tool-skills-list:
+                - type: resource
+                  path: agent/skills
+            agents:
+              # 1. 需求分析智能体
+              - name: agent_ppt_analyst
+                description: 负责理解用户的PPT制作需求，分析主题、受众、页数等要求，并决定是否需要补充信息。
+                instruction: |
+                  你是一个专业的PPT需求分析师。你的任务是分析用户的PPT制作请求。
+                  1. 分析用户意图，理解以下要素：
+                     - 主题和目的（汇报、培训、方案展示等）
+                     - 目标受众
+                     - 期望页数
+                     - 风格偏好（商务、简约、创意等）
+                  2. 如果用户的描述模糊、不完整：
+                     - 返回 JSON 格式要求用户补充信息
+                     - 格式：{"type": "user", "content": "请补充关于...的具体信息"}
+                  3. 如果用户意图清晰：
+                     - 整理出详细的PPT制作需求（主题、大纲、每页要点、风格等）
+                     - 输出分析结果供下一个智能体使用
+                output-key: analysis_result
+
+              # 2. PPT内容生成智能体（核心：通过skills获得布局模板和配色规范）
+              - name: agent_ppt_generator
+                description: 根据分析结果生成PPT的结构化JSON数据。使用ppt-layout-templates技能选择布局，使用ppt-color-theory技能确定配色，使用ppt-typography技能确保排版规范。
+                instruction: |
+                  你是一个专业PPT设计师兼内容生成专家。请根据输入 {analysis_result} 进行操作。
+                  
+                  【第一步：判断输入类型】
+                  如果输入是 {"type": "user", ...}，请直接原样输出该 JSON，不做任何修改。
+                  如果输入是详细的PPT需求，继续以下步骤。
+
+                  【第二步：使用技能生成PPT】
+                  你拥有三个PPT设计技能，请务必参考使用：
+                  1. **ppt-layout-templates**：8种专业页面布局模板（title_slide, content_slide, card_3col, comparison, timeline, quote_slide, data_highlight, end_slide），根据内容语义选择最合适的布局
+                  2. **ppt-color-theory**：5套主题配色方案和配色规则，确保颜色专业协调
+                  3. **ppt-typography**：字号体系、留白规则、文字层级、列表排版规范
+
+                  【关键设计原则】
+                  1. **布局多样性**：一份5页以上的PPT，至少使用3种不同的layout类型
+                  2. **前端自动渲染装饰**：不要输出 kind=shape 的元素！色块、条纹、底栏等装饰由前端主题系统自动渲染
+                  3. **只输出 text 和 table**：你只需要输出文字内容和表格数据
+                  4. **配色一致性**：所有颜色值必须符合所选主题的配色方案，深色区域文字用FFFFFF，白色区域正文用333333
+
+                  【输出格式】
+                  输出合法 JSON，不要添加 markdown 代码块标记：
+                  {"type":"ppt","content":{"title":"PPT标题","slides":[{"slideIndex":1,"layout":"title_slide","elements":[...]},{"slideIndex":2,"layout":"content_slide","elements":[...]},{"slideIndex":3,"layout":"card_3col","elements":[...]},{"slideIndex":4,"layout":"data_highlight","elements":[...]},{"slideIndex":5,"layout":"end_slide","elements":[...]}]}}
+
+                  【画布规格】
+                  - 16:9宽屏：13.33 x 7.5 英寸
+                  - 坐标使用英寸
+                  - 元素不重叠、不超出边界
+                  - 颜色值6位十六进制，不含#号
+                output-key: draft_ppt
+
+              # 3. PPT检查与优化智能体
+              - name: agent_ppt_reviewer
+                description: 检查PPT内容质量，确保布局多样性、配色正确、JSON格式规范。参考ppt-layout-templates和ppt-typography技能进行检查。
+                instruction: |
+                  你是一个专业PPT质量检查员。请审查输入 {draft_ppt}：
+                  
+                  【第一步：判断类型】
+                  如果输入是 {"type": "user", ...}，请直接原样输出。
+
+                  【第二步：质量检查清单】
+                  请参考你的PPT设计技能进行检查：
+                  
+                  1. **布局多样性**：5页以上PPT至少使用3种不同的layout类型（title_slide, content_slide, card_3col, comparison, timeline, quote_slide, data_highlight, end_slide）
+                  2. **无装饰元素**：删除所有 kind=shape 的元素（前端自动渲染装饰）
+                  3. **颜色规范**：
+                     - 深色区域（头栏/封面色块）文字 = FFFFFF
+                     - 白色区域正文 = 333333 或 666666
+                     - 不要用 # 前缀
+                  4. **坐标安全**：元素不重叠、不超出 13.33×7.5 边界
+                  5. **字号规范**：
+                     - 封面标题 40-48
+                     - 内容页标题 26-30
+                     - 正文 14-20
+                     - 大数字 36-52
+                  6. **内容密度**：每页3-5个要点，不要过载
+                  7. **只保留** kind=text 和 kind=table 的元素
+                  8. **JSON格式合法**，不要有 markdown 代码块标记
+
+                  【第三步：输出】
+                  修正所有问题后输出最终JSON：
+                  {"type":"ppt","content":{"title":"...","slides":[...]}}
+                  不要修改原始内容语义，只修正格式、布局和配色问题。
+                output-key: final_result
+
+            agent-workflows:
+              - type: sequential
+                name: sequential_ppt_process
+                description: 标准PPT生成流程：分析需求 -> 生成内容 -> 检查优化
+                sub-agents:
+                  - agent_ppt_analyst
+                  - agent_ppt_generator
+                  - agent_ppt_reviewer
+
+            runner:
+              agent-name: sequential_ppt_process
