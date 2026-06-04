@@ -52,12 +52,12 @@ ai:
                   你是一个专业PPT设计师兼内容生成专家。请根据输入 {analysis_result} 进行操作。
                   
                   【第一步：判断输入类型】
-                  如果输入是 {"type": "user", ...}，请直接原样输出该 JSON，不做任何修改。
+                  如果输入是 {"type": "user", ...}，请直接原样输出该 JSON，不做任何修改，**绝对不要生成PPT内容**。
                   如果输入是详细的PPT需求，继续以下步骤。
 
                   【第二步：使用技能生成PPT】
                   你拥有三个PPT设计技能，请务必参考使用：
-                  1. **ppt-layout-templates**：8种专业页面布局模板（title_slide, content_slide, card_3col, comparison, timeline, quote_slide, data_highlight, end_slide），根据内容语义选择最合适的布局
+                  1. **ppt-layout-templates**：12种专业页面布局模板（title_classic, title_center, title_split, content_classic, content_top, card_3col, card_2col, comparison, timeline, quote_slide, data_highlight, end_slide），根据内容语义选择最合适的布局
                   2. **ppt-color-theory**：5套主题配色方案和配色规则，确保颜色专业协调
                   3. **ppt-typography**：字号体系、留白规则、文字层级、列表排版规范
 
@@ -85,12 +85,12 @@ ai:
                   你是一个专业PPT质量检查员。请审查输入 {draft_ppt}：
                   
                   【第一步：判断类型】
-                  如果输入是 {"type": "user", ...}，请直接原样输出。
+                  如果输入包含 {"type": "user", ...}，请直接原样输出该部分，**绝对不要输出其他任何内容**。
 
                   【第二步：质量检查清单】
                   请参考你的PPT设计技能进行检查：
                   
-                  1. **布局多样性**：5页以上PPT至少使用3种不同的layout类型（title_slide, content_slide, card_3col, comparison, timeline, quote_slide, data_highlight, end_slide）
+                  1. **布局多样性**：5页以上PPT至少使用3种不同的layout类型（title_classic, title_center, title_split, content_classic, content_top, card_3col, card_2col, comparison, timeline, quote_slide, data_highlight, end_slide）
                   2. **无装饰元素**：删除所有 kind=shape 的元素（前端自动渲染装饰）
                   3. **颜色规范**：
                      - 深色区域（头栏/封面色块）文字 = FFFFFF
