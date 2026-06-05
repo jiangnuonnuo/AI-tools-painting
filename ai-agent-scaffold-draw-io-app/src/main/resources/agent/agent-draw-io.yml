@@ -11,11 +11,11 @@ ai:
           module:
             ai-api:
               base-url: https://apis.itedus.cn
-              api-key: sk-jKFyTSADXTKRmrvyA4CcE43fCd264112B327B67d5cA76d7c
+              api-key: sk-meujljTf9WblepXMirM2FkGiiEDh1KeNlqfm4ZuKyNWHM3Gy
               completions-path: v1/chat/completions
               embeddings-path: v1/embeddings
             chat-model:
-              model: gpt-4.1
+              model: gpt-5.5
               tool-mcp-list:
                 - sse:
                     name: baidu-search
