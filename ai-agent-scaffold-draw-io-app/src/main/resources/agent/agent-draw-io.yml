@@ -10,7 +10,7 @@ ai:
             agent-desc: 人 + AI + Draw.io，交互式对话完成 draw.io 绘图。
           module:
             ai-api:
-              base-url: https://apis.itedus.cn
+              #              base-url: https://apis.itedus.cn
               api-key: sk-meujljTf9WblepXMirM2FkGiiEDh1KeNlqfm4ZuKyNWHM3Gy
               completions-path: v1/chat/completions
               embeddings-path: v1/embeddings
@@ -22,6 +22,9 @@ ai:
                     base-uri: http://appbuilder.baidu.com/v2/ai_search/mcp/
                     sse-endpoint: sse?api_key=bce-v3/ALTAK-WjK8NIh3txZo7rXXEjhri/e2f09d53de961bcaf2609b76c7c7a7e6d0f05da3
                     request-timeout: 500000
+              tool-skills-list:
+                - type: resource
+                  path: agent/skills
             agents:
               # 1. 需求分析与检索智能体
               - name: agent_analyst
@@ -38,9 +41,16 @@ ai:
 
               # 2. 绘图执行智能体
               - name: agent_drawer
-                description: 根据分析结果，逐节点生成 Draw.io 的 XML 数据，支持流式渐进输出。
+                description: 根据分析结果，逐节点生成 Draw.io 的 XML 数据，支持流式渐进输出。必须使用相关的画图技能 (UML, 时序图, 流程图, 架构图) 来确保专业的节点样式和连线设计。
                 instruction: |
                   你是一个 Draw.io 绘图专家。请根据输入 {analysis_result} 进行操作：
+
+                  【核心能力：使用绘图设计技能】
+                  你拥有四个核心的绘图设计技能，在绘制相关图表时，请务必参考并使用对应的技能规范：
+                  1. **drawio-uml**：绘制类图、用例图等UML图的节点和连线样式。
+                  2. **drawio-sequence**：绘制时序图、生命周期线和消息传递规范。
+                  3. **drawio-architecture**：绘制系统架构、部署图、微服务组件的样式规范。
+                  4. **drawio-flowchart**：绘制业务流程、审批流的节点与分支连线规范。
 
                   1. 如果输入是 {"type": "user", ...}，请直接原样输出该 JSON。
 
@@ -49,22 +59,19 @@ ai:
                      输出格式规范（严格遵守，每行一个 JSON，不要输出其他任何内容）：
 
                      a) 首先输出所有节点，每行格式：
-                        {"type":"drawio_node","id":"2","label":"节点名称","xml":"<mxCell id='2' value='节点名称' style='rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;' vertex='1' parent='1'><mxGeometry x='100' y='100' width='120' height='60' as='geometry'/></mxCell>"}
+                        {"type":"drawio_node","id":"2","label":"节点名称","xml":"<mxCell id='2' value='节点名称' style='(从相应的技能中获取样式)' vertex='1' parent='1'><mxGeometry x='100' y='100' width='120' height='60' as='geometry'/></mxCell>"}
 
                      b) 然后输出所有连线，每行格式：
-                        {"type":"drawio_edge","id":"e1","label":"连线标签","source":"2","target":"3","xml":"<mxCell id='e1' value='连线标签' style='edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;' edge='1' source='2' target='3' parent='1'><mxGeometry relative='1' as='geometry'/></mxCell>"}
+                        {"type":"drawio_edge","id":"e1","label":"连线标签","source":"2","target":"3","xml":"<mxCell id='e1' value='连线标签' style='(从相应的技能中获取连线样式)' edge='1' source='2' target='3' parent='1'><mxGeometry relative='1' as='geometry'/></mxCell>"}
 
                      c) 最后输出完整 XML 兜底：
                         {"type":"drawio_done","content":"<mxGraphModel><root><mxCell id='0'/><mxCell id='1' parent='0'/><mxCell id='2' .../>...全部节点和连线...</root></mxGraphModel>"}
 
                   3. 设计要求：
-                     - 选择合适的图表类型（流程图、UML、时序图、架构图等）
-                     - 节点布局合理，从上到下或从左到右排列
-                     - y坐标间隔至少80，避免节点重叠
-                     - 连线使用 orthogonalEdgeStyle，尽量避免交叉
-                     - 节点样式要美观，使用圆角矩形，不同类型节点用不同颜色区分
+                     - 务必参考指定的 skills 赋予合适的节点与连线 style
+                     - 节点布局合理，从上到下或从左到右排列，y坐标间隔至少80，避免重叠
                      - 所有 mxCell 的 id 必须唯一且递增（从2开始）
-                     - parent 固定为 '1'
+                     - parent 固定为 '1'（除非是子节点如时序图的 activation）
 
                   4. 关键约束：
                      - 每个 JSON 必须在一行内输出，不要换行
