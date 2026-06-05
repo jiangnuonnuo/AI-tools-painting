@@ -10,7 +10,8 @@ ai:
             agent-desc: 人 + AI + PptxGenJS，交互式对话完成 PPT 演示文稿生成。
           module:
             ai-api:
-              base-url: https://apis.itedus.cn
+#              base-url: https://apis.itedus.cn
+              base-url: https://api.code-relay.com
               api-key: sk-meujljTf9WblepXMirM2FkGiiEDh1KeNlqfm4ZuKyNWHM3Gy
               completions-path: v1/chat/completions
               embeddings-path: v1/embeddings

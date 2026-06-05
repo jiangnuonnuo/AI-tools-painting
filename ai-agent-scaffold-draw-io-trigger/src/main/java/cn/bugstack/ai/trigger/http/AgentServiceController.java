@@ -160,27 +160,175 @@ public class AgentServiceController implements IAgentService {
     @RequestMapping(value = "chat_stream", method = RequestMethod.POST)
     @Override
     public ResponseBodyEmitter chatStream(@RequestBody ChatRequestDTO requestDTO) {
-        ResponseBodyEmitter emitter = new ResponseBodyEmitter(3 * 60 * 1000L);
+        ResponseBodyEmitter emitter = new ResponseBodyEmitter(5 * 60 * 1000L) {
+            @Override
+            protected void extendResponse(org.springframework.http.server.ServerHttpResponse outputMessage) {
+                outputMessage.getHeaders().set("Content-Type", "application/x-ndjson");
+            }
+        };
         try {
             log.info("流式对话 agentId:{} userId:{} sessionId:{} message:{}", requestDTO.getAgentId(), requestDTO.getUserId(), requestDTO.getSessionId(), requestDTO.getMessage());
-            chatService.handleMessageStream(requestDTO.getAgentId(), requestDTO.getUserId(), requestDTO.getSessionId(), requestDTO.getMessage())
+
+            // Ensure session exists
+            String sessionId = requestDTO.getSessionId();
+            if (sessionId == null || sessionId.isEmpty()) {
+                sessionId = chatService.createSession(requestDTO.getAgentId(), requestDTO.getUserId());
+            }
+
+            final String finalSessionId = sessionId;
+
+            // Accumulate partial text per author, detect complete JSON lines to flush incrementally
+            final java.util.concurrent.ConcurrentHashMap<String, StringBuilder> authorBuffers = new java.util.concurrent.ConcurrentHashMap<>();
+
+            chatService.handleMessageStream(requestDTO.getAgentId(), requestDTO.getUserId(), finalSessionId, requestDTO.getMessage())
                     .subscribe(
                             event -> {
                                 try {
-                                    emitter.send(event.stringifyContent());
+                                    // Determine phase from author
+                                    String author = event.author();
+                                    String phase;
+                                    switch (author != null ? author : "unknown") {
+                                        case "agent_analyst":
+                                            phase = "analyzing";
+                                            break;
+                                        case "agent_drawer":
+                                            phase = "drawing";
+                                            break;
+                                        case "agent_reviewer":
+                                            phase = "reviewing";
+                                            break;
+                                        default:
+                                            phase = "thinking";
+                                    }
+
+                                    // Skip events that are purely function calls/responses (tool invocations)
+                                    if (!event.functionCalls().isEmpty() || !event.functionResponses().isEmpty()) {
+                                        return;
+                                    }
+
+                                    String content = event.stringifyContent();
+                                    if (content == null || content.isEmpty()) {
+                                        return;
+                                    }
+
+                                    boolean isPartial = event.partial().orElse(false);
+
+                                    StringBuilder buffer = authorBuffers.computeIfAbsent(author, k -> new StringBuilder());
+                                    buffer.append(content);
+
+                                    // Check if the buffer contains complete JSON lines we can flush
+                                    String accumulated = buffer.toString();
+
+                                    // Process complete lines when:
+                                    // 1. NOT a partial event (final event), OR
+                                    // 2. Buffer contains a newline (at least one complete line)
+                                    if (!isPartial || accumulated.contains("\n")) {
+                                        String[] lines = accumulated.split("\n", -1);
+                                        String remaining = lines[lines.length - 1];
+
+                                        // Reset buffer
+                                        buffer.setLength(0);
+                                        if (!remaining.isEmpty()) {
+                                            buffer.append(remaining);
+                                        }
+
+                                        // Process complete lines
+                                        int processUpTo = isPartial ? lines.length - 1 : lines.length;
+                                        for (int i = 0; i < processUpTo; i++) {
+                                            String line = lines[i].trim();
+                                            if (line.isEmpty()) continue;
+                                            processAndSendLine(emitter, phase, line);
+                                        }
+                                    }
+
+                                    // If this is a non-partial event (final), flush any remaining buffer
+                                    if (!isPartial) {
+                                        String remaining = buffer.toString().trim();
+                                        buffer.setLength(0);
+                                        if (!remaining.isEmpty()) {
+                                            processAndSendLine(emitter, phase, remaining);
+                                        }
+                                    }
                                 } catch (Exception e) {
                                     log.error("流式对话发送失败", e);
-                                    emitter.completeWithError(e);
                                 }
                             },
-                            emitter::completeWithError,
-                            emitter::complete
+                            error -> {
+                                log.error("流式对话异常", error);
+                                try {
+                                    com.alibaba.fastjson.JSONObject errMsg = new com.alibaba.fastjson.JSONObject();
+                                    errMsg.put("phase", "error");
+                                    com.alibaba.fastjson.JSONObject chunk = new com.alibaba.fastjson.JSONObject();
+                                    chunk.put("type", "error");
+                                    chunk.put("content", "对话异常，请重试");
+                                    errMsg.put("chunk", chunk);
+                                    emitter.send(errMsg.toJSONString() + "\n");
+                                } catch (Exception ignored) {}
+                                emitter.completeWithError(error);
+                            },
+                            () -> {
+                                // Flush any remaining buffers
+                                for (StringBuilder buf : authorBuffers.values()) {
+                                    String remaining = buf.toString().trim();
+                                    if (!remaining.isEmpty()) {
+                                        try {
+                                            processAndSendLine(emitter, "done", remaining);
+                                        } catch (Exception ignored) {}
+                                    }
+                                }
+                                try {
+                                    com.alibaba.fastjson.JSONObject doneMsg = new com.alibaba.fastjson.JSONObject();
+                                    doneMsg.put("phase", "done");
+                                    com.alibaba.fastjson.JSONObject chunk = new com.alibaba.fastjson.JSONObject();
+                                    chunk.put("type", "done");
+                                    doneMsg.put("chunk", chunk);
+                                    emitter.send(doneMsg.toJSONString() + "\n");
+                                } catch (Exception ignored) {}
+                                emitter.complete();
+                            }
                     );
         } catch (Exception e) {
             log.error("流式对话失败", e);
             emitter.completeWithError(e);
         }
         return emitter;
+    }
+
+    /**
+     * Process a single line: try to parse as drawio JSON, otherwise send as status text.
+     */
+    private void processAndSendLine(ResponseBodyEmitter emitter, String phase, String line) throws Exception {
+        try {
+            com.alibaba.fastjson.JSONObject json = com.alibaba.fastjson.JSON.parseObject(line);
+            if (json != null && json.containsKey("type")) {
+                String type = json.getString("type");
+                if ("drawio_node".equals(type) || "drawio_edge".equals(type) || "drawio_done".equals(type) || "user".equals(type) || "drawio".equals(type)) {
+                    // Structured drawio output - pass through with phase info
+                    com.alibaba.fastjson.JSONObject wrapper = new com.alibaba.fastjson.JSONObject();
+                    wrapper.put("phase", phase);
+                    wrapper.put("chunk", json);
+                    emitter.send(wrapper.toJSONString() + "\n");
+                    
+                    // 模拟人类画图操作停顿，让前端有足够的时间进行渲染
+                    if ("drawio_node".equals(type) || "drawio_edge".equals(type)) {
+                        Thread.sleep(250);
+                    }
+                    
+                    return;
+                }
+            }
+        } catch (Exception parseEx) {
+            // Not a JSON line, fall through to treat as text
+        }
+
+        // Non-JSON content or unrecognized JSON - send as phase status
+        com.alibaba.fastjson.JSONObject statusMsg = new com.alibaba.fastjson.JSONObject();
+        com.alibaba.fastjson.JSONObject chunk = new com.alibaba.fastjson.JSONObject();
+        chunk.put("type", "status");
+        chunk.put("content", line);
+        statusMsg.put("phase", phase);
+        statusMsg.put("chunk", chunk);
+        emitter.send(statusMsg.toJSONString() + "\n");
     }
 
 }
