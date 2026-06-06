@@ -70,8 +70,10 @@ XML 示例：
 样式：`html=1;verticalAlign=bottom;endArrow=block;edgeStyle=elbowEdgeStyle;elbow=vertical;`
 需要在 `<Array as="points">` 中定义转折点。
 
-## 4. 布局建议
-1. Lifeline 的 Y 坐标应一致（如 y=50），X 坐标依次递增，间距建议 200 以上。
-2. 消息连线从上到下按时间顺序排列。每条消息的 Y 坐标递增（比如差值 40~60）。
-3. 标注消息序号（如 "1. login()", "1.1 validate()"），更清晰。
-4. 使用 elbowEdgeStyle 保证线条水平。
+## 4. 布局算法建议 (严格计算)
+为避免重叠和线条交叉，请严格计算坐标：
+1. **Lifeline X坐标**：参与者从左到右排列，x=100, x=300, x=500, x=700... 保持固定间距 200。Y 坐标一致（如 y=50）。
+2. **消息 Y坐标**：消息按时间顺序自上而下排列，第一条消息 y=120，后续每条消息 y 坐标递增 50（例如 120, 170, 220）。
+3. **激活块**：x 坐标相对于 Lifeline 居中（如 Lifeline 宽100，激活块宽10，x=45），y 坐标等于接收消息的 y 坐标，height 等于持续的时间跨度。
+4. 标注消息序号（如 "1. login()", "1.1 validate()"），更清晰。
+5. 使用 elbowEdgeStyle 保证线条水平。
