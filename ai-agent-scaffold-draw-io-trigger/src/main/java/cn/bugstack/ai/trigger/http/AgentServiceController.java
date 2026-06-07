@@ -216,6 +216,21 @@ public class AgentServiceController implements IAgentService {
                                         return;
                                     }
 
+                                    // For PPT generation and reviewing, stream the content directly as ppt_raw
+                                    // This prevents buffering huge JSON strings and causing frontend timeouts
+                                    if ("agent_ppt_generator".equals(author) || "agent_ppt_reviewer".equals(author)) {
+                                        try {
+                                            com.alibaba.fastjson.JSONObject wrapper = new com.alibaba.fastjson.JSONObject();
+                                            wrapper.put("phase", phase);
+                                            com.alibaba.fastjson.JSONObject chunk = new com.alibaba.fastjson.JSONObject();
+                                            chunk.put("type", "ppt_raw");
+                                            chunk.put("raw", content);
+                                            wrapper.put("chunk", chunk);
+                                            emitter.send(wrapper.toJSONString() + "\n");
+                                        } catch (Exception ignored) {}
+                                        return;
+                                    }
+
                                     boolean isPartial = event.partial().orElse(false);
 
                                     StringBuilder buffer = authorBuffers.computeIfAbsent(author, k -> new StringBuilder());

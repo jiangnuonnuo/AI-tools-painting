@@ -63,11 +63,15 @@ public class ChatService implements IChatService {
         String appName = aiAgentRegisterVO.getAppName();
         InMemoryRunner runner = aiAgentRegisterVO.getRunner();
 
-        return userSessions.computeIfAbsent(userId, uid -> {
-            Session session = runner.sessionService().createSession(appName, uid)
-                    .blockingGet();
-            return session.id();
-        });
+        Session session = runner.sessionService().createSession(appName, userId)
+                .blockingGet();
+        
+        String sessionId = session.id();
+        // Update cache so subsequent handleMessage calls without sessionId can use this new session
+        String cacheKey = userId + "_" + agentId;
+        userSessions.put(cacheKey, sessionId);
+        
+        return sessionId;
     }
 
     @Override
@@ -79,7 +83,11 @@ public class ChatService implements IChatService {
             throw new AppException(ResponseCode.E0001.getCode());
         }
 
-        String sessionId = createSession(agentId, userId);
+        String cacheKey = userId + "_" + agentId;
+        String sessionId = userSessions.get(cacheKey);
+        if (sessionId == null) {
+            sessionId = createSession(agentId, userId);
+        }
 
         return handleMessage(agentId, userId, sessionId, message);
     }

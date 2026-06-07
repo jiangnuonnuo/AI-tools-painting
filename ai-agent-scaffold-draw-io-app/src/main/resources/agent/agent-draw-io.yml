@@ -14,7 +14,7 @@ ai:
               base-url: https://qianfan.baidubce.com/v2/coding/
               api-key: bce-v3/ALTAKSP-KkcttQhDmPa4Ixn80YeFK/41018f4fe978c3e12f1c4f862f7bf214da9f61f5
               completions-path: chat/completions
-              embeddings-path: v1/embeddings
+              embeddings-path: embeddings
             chat-model:
               model: glm-5.1
               tool-mcp-list:

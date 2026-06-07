@@ -13,10 +13,10 @@ ai:
               #              base-url: https://apis.itedus.cn
               base-url: https://qianfan.baidubce.com/v2/coding/
               api-key: bce-v3/ALTAKSP-KkcttQhDmPa4Ixn80YeFK/41018f4fe978c3e12f1c4f862f7bf214da9f61f5
-              completions-path: v1/chat/completions
-              embeddings-path: v1/embeddings
+              completions-path: chat/completions
+              embeddings-path: embeddings
             chat-model:
-              model: qianfan-code-latest
+              model: glm-5.1
               tool-mcp-list:
                 - sse:
                     name: baidu-search
@@ -70,6 +70,8 @@ ai:
                   3. **ppt-typography**：字号体系、留白规则、文字层级规范
 
                   【🌟 关键设计原则 — 让PPT像专业设计师做出来的】
+                  0. **严格遵守页数要求**：如果用户要求生成6页，你必须生成**整整6页**的 `slides` 数据，每页内容饱满且逻辑连贯，**绝对不能少页**！
+                  0.1. **合理排版避免堆叠**：请务必合理分配元素的坐标 (x, y) 和宽高 (w, h)，**同一页内的元素绝对不能重叠**。如果内容多，请将其拆分到多页中。
                   1. **每个内容页至少1个icon** — 卡片顶部、要点前面、章节封面都加emoji图标
                   2. **用bullet代替纯文字列表** — 带编号圆圈的要点比 • 文字列表视觉上更专业
                   3. **用divider分隔区域** — 内容较多的页面用分割线分区
@@ -88,7 +90,7 @@ ai:
                   - 坐标使用英寸
                   - 元素不重叠、不超出边界
                   - 颜色值6位十六进制，不含#号
-                output-key: draft_ppt
+                output-key: final_result
 
               # 3. PPT检查与优化智能体
               - name: agent_ppt_reviewer
@@ -126,7 +128,6 @@ ai:
                 sub-agents:
                   - agent_ppt_analyst
                   - agent_ppt_generator
-                  - agent_ppt_reviewer
 
             runner:
               agent-name: sequential_ppt_process
