@@ -15,7 +15,7 @@ ai:
               completions-path: v1/chat/completions
               embeddings-path: v1/embeddings
             chat-model:
-              model: gpt-4.1
+              model: gpt-5.5
               tool-mcp-list:
                 - sse:
                     name: baidu-search

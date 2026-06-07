@@ -5,7 +5,7 @@ version: '3.8'
 services:
   ## 后端服务，注意修改 智能体 DRAWIOAGENT 配置。
   ai-draw-io-app:
-    image: registry.cn-hangzhou.aliyuncs.com/fuzhengwei/ai-draw-io-app:1.6
+    image: registry.cn-hangzhou.aliyuncs.com/fuzhengwei/ai-draw-io-app:1.7
 #    image: fuzhengwei/ai-draw-io-app:1.0
     container_name: ai-draw-io-app
     restart: on-failure
@@ -43,7 +43,7 @@ services:
 
   ## 前端服务，注意 image 如果你有自己的镜像，记得更换。
   ai-draw-io-front:
-    image: registry.cn-hangzhou.aliyuncs.com/fuzhengwei/ai-draw-io-front:1.5
+    image: registry.cn-hangzhou.aliyuncs.com/fuzhengwei/ai-draw-io-front:1.7
 #    image: fuzhengwei/ai-draw-io-front:1.0
     container_name: ai-draw-io-front
     restart: always
