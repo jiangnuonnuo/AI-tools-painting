@@ -54,6 +54,9 @@ public class CustomConfigPlugin extends BasePlugin {
             if (StringUtils.isNotBlank(config.getApiKey())) {
                 headers.put("X-Custom-Api-Key", config.getApiKey());
             }
+            if (StringUtils.isNotBlank(config.getCompletionsPath())) {
+                headers.put("X-Custom-Completions-Path", config.getCompletionsPath());
+            }
             if (StringUtils.isNotBlank(config.getModel())) {
                 requestBuilder.model(config.getModel());
             }

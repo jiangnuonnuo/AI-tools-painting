@@ -78,7 +78,7 @@ public class MyMessageConverter extends MessageConverter {
             llmRequest.config().get().httpOptions().get().headers().isPresent()) {
             
             Map<String, String> customHeaders = llmRequest.config().get().httpOptions().get().headers().get();
-            if (customHeaders.containsKey("X-Custom-Base-Url") || customHeaders.containsKey("X-Custom-Api-Key")) {
+            if (customHeaders.containsKey("X-Custom-Base-Url") || customHeaders.containsKey("X-Custom-Api-Key") || customHeaders.containsKey("X-Custom-Completions-Path")) {
                 ChatOptions options = llmPrompt.getOptions();
                 OpenAiChatOptions openAiOptions;
                 if (options instanceof OpenAiChatOptions) {
@@ -99,6 +99,9 @@ public class MyMessageConverter extends MessageConverter {
                 }
                 if (customHeaders.containsKey("X-Custom-Api-Key")) {
                     existingHeaders.put("X-Custom-Api-Key", customHeaders.get("X-Custom-Api-Key"));
+                }
+                if (customHeaders.containsKey("X-Custom-Completions-Path")) {
+                    existingHeaders.put("X-Custom-Completions-Path", customHeaders.get("X-Custom-Completions-Path"));
                 }
 
                 openAiOptions.setHttpHeaders(existingHeaders);
