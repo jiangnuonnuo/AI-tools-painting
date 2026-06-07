@@ -10,4 +10,10 @@ public class ChatRequestDTO {
     private String sessionId;
     private String message;
 
+    // 自定义配置
+    private String customBaseUrl;
+    private String customApiKey;
+    private String customCompletionsPath;
+    private String customModel;
+
 }

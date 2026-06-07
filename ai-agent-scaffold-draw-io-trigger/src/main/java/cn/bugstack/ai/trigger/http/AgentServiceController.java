@@ -16,6 +16,8 @@ import javax.annotation.Resource;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import cn.bugstack.ai.domain.agent.service.chat.CustomApiConfigManager;
+
 /**
  *
  * @author xiaofuge bugstack.cn @小傅哥
@@ -115,6 +117,15 @@ public class AgentServiceController implements IAgentService {
                 sessionId = chatService.createSession(requestDTO.getAgentId(), requestDTO.getUserId());
             }
 
+            // 保存用户自定义配置
+            CustomApiConfigManager.CustomApiConfig config = CustomApiConfigManager.CustomApiConfig.builder()
+                    .baseUrl(requestDTO.getCustomBaseUrl())
+                    .apiKey(requestDTO.getCustomApiKey())
+                    .completionsPath(requestDTO.getCustomCompletionsPath())
+                    .model(requestDTO.getCustomModel())
+                    .build();
+            CustomApiConfigManager.setConfig(sessionId, config);
+
             List<String> messages = chatService.handleMessage(requestDTO.getAgentId(), requestDTO.getUserId(), sessionId, requestDTO.getMessage());
 
             ChatResponseDTO responseDTO = new ChatResponseDTO();
@@ -176,6 +187,15 @@ public class AgentServiceController implements IAgentService {
             }
 
             final String finalSessionId = sessionId;
+
+            // 保存用户自定义配置
+            CustomApiConfigManager.CustomApiConfig config = CustomApiConfigManager.CustomApiConfig.builder()
+                    .baseUrl(requestDTO.getCustomBaseUrl())
+                    .apiKey(requestDTO.getCustomApiKey())
+                    .completionsPath(requestDTO.getCustomCompletionsPath())
+                    .model(requestDTO.getCustomModel())
+                    .build();
+            CustomApiConfigManager.setConfig(finalSessionId, config);
 
             // Accumulate partial text per author, detect complete JSON lines to flush incrementally
             final java.util.concurrent.ConcurrentHashMap<String, StringBuilder> authorBuffers = new java.util.concurrent.ConcurrentHashMap<>();

@@ -6,12 +6,16 @@ import com.google.adk.models.springai.MessageConverter;
 import com.google.genai.types.Content;
 import com.google.genai.types.Part;
 import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.chat.prompt.ChatOptions;
+import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.content.Media;
 import org.springframework.util.MimeType;
 
 import java.net.URI;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Spring AI 补丁
@@ -67,6 +71,42 @@ public class MyMessageConverter extends MessageConverter {
 
         Prompt llmPrompt = super.toLlmPrompt(llmRequest);
         llmPrompt.getUserMessage().getMedia().addAll(mediaList);
+
+        // 处理自定义 HTTP Headers
+        if (llmRequest.config().isPresent() && 
+            llmRequest.config().get().httpOptions().isPresent() && 
+            llmRequest.config().get().httpOptions().get().headers().isPresent()) {
+            
+            Map<String, String> customHeaders = llmRequest.config().get().httpOptions().get().headers().get();
+            if (customHeaders.containsKey("X-Custom-Base-Url") || customHeaders.containsKey("X-Custom-Api-Key")) {
+                ChatOptions options = llmPrompt.getOptions();
+                OpenAiChatOptions openAiOptions;
+                if (options instanceof OpenAiChatOptions) {
+                    openAiOptions = (OpenAiChatOptions) options;
+                } else {
+                    openAiOptions = OpenAiChatOptions.builder().build();
+                }
+
+                Map<String, String> existingHeaders = openAiOptions.getHttpHeaders();
+                if (existingHeaders == null) {
+                    existingHeaders = new HashMap<>();
+                } else {
+                    existingHeaders = new HashMap<>(existingHeaders);
+                }
+                
+                if (customHeaders.containsKey("X-Custom-Base-Url")) {
+                    existingHeaders.put("X-Custom-Base-Url", customHeaders.get("X-Custom-Base-Url"));
+                }
+                if (customHeaders.containsKey("X-Custom-Api-Key")) {
+                    existingHeaders.put("X-Custom-Api-Key", customHeaders.get("X-Custom-Api-Key"));
+                }
+
+                openAiOptions.setHttpHeaders(existingHeaders);
+                
+                // 返回一个新的 Prompt 以包含更新后的 options
+                return new Prompt(llmPrompt.getInstructions(), openAiOptions);
+            }
+        }
 
         return llmPrompt;
     }
