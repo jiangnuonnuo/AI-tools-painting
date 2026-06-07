@@ -5,7 +5,7 @@ version: '3.8'
 services:
   ## 后端服务，注意修改 智能体 DRAWIOAGENT 配置。
   ai-draw-io-app:
-    image: registry.cn-hangzhou.aliyuncs.com/fuzhengwei/ai-draw-io-app:1.3
+    image: registry.cn-hangzhou.aliyuncs.com/fuzhengwei/ai-draw-io-app:1.6
 #    image: fuzhengwei/ai-draw-io-app:1.0
     container_name: ai-draw-io-app
     restart: on-failure
@@ -16,12 +16,21 @@ services:
       - SERVER_PORT=8091
       # 智能体 DRAWIOAGENT 配置，更换 base_url、api_key、model、以及百度搜索的 api_key 「https://console.bce.baidu.com/iam/?_=1753597622044#/iam/apikey/list」
       - AI_AGENT_CONFIG_TABLES_DRAWIOAGENT_MODULE_AI_API_BASE_URL=https://apis.itedus.cn
-      - AI_AGENT_CONFIG_TABLES_DRAWIOAGENT_MODULE_AI_API_API_KEY=sk-rcGB6tAE0TSOqZ4oE7Ee2f60A4Bd499eB4F6B0Ab3dBbBeC4
-      - AI_AGENT_CONFIG_TABLES_DRAWIOAGENT_MODULE_CHAT_MODEL_MODEL=gpt-5.1
+      - AI_AGENT_CONFIG_TABLES_DRAWIOAGENT_MODULE_AI_API_API_KEY=sk-S2YffPknMOEbapquA84c9004294248568d1a3fDdAfA137C9
+      - AI_AGENT_CONFIG_TABLES_DRAWIOAGENT_MODULE_AI_API_COMPLETIONS_PATH=v1/chat/completions
+      - AI_AGENT_CONFIG_TABLES_DRAWIOAGENT_MODULE_CHAT_MODEL_MODEL=gpt-4.1
       - AI_AGENT_CONFIG_TABLES_DRAWIOAGENT_MODULE_CHAT_MODEL_TOOL_MCP_LIST_0_SSE_NAME=baidu-search
       - AI_AGENT_CONFIG_TABLES_DRAWIOAGENT_MODULE_CHAT_MODEL_TOOL_MCP_LIST_0_SSE_BASE_URI=http://appbuilder.baidu.com/v2/ai_search/mcp/
       - AI_AGENT_CONFIG_TABLES_DRAWIOAGENT_MODULE_CHAT_MODEL_TOOL_MCP_LIST_0_SSE_SSE_ENDPOINT=sse?api_key=bce-v3/ALTAK-WjK8NIh3txZo7rXXEjhri/e2f09d53de961bcaf2609b76c7c7a7e6d0f05da3
       - AI_AGENT_CONFIG_TABLES_DRAWIOAGENT_MODULE_CHAT_MODEL_TOOL_MCP_LIST_0_SSE_REQUEST_TIMEOUT=500000
+      - AI_AGENT_CONFIG_TABLES_PPTAGENT_MODULE_AI_API_BASE_URL=https://apis.itedus.cn
+      - AI_AGENT_CONFIG_TABLES_PPTAGENT_MODULE_AI_API_API_KEY=sk-S2YffPknMOEbapquA84c9004294248568d1a3fDdAfA137C9
+      - AI_AGENT_CONFIG_TABLES_PPTAGENT_MODULE_CHAT_MODEL_MODEL=gpt-4.1
+      - AI_AGENT_CONFIG_TABLES_PPTAGENT_MODULE_AI_API_COMPLETIONS_PATH=v1/chat/completions
+      - AI_AGENT_CONFIG_TABLES_PPTAGENT_MODULE_CHAT_MODEL_TOOL_MCP_LIST_0_SSE_NAME=baidu-search
+      - AI_AGENT_CONFIG_TABLES_PPTAGENT_MODULE_CHAT_MODEL_TOOL_MCP_LIST_0_SSE_BASE_URI=http://appbuilder.baidu.com/v2/ai_search/mcp/
+      - AI_AGENT_CONFIG_TABLES_PPTAGENT_MODULE_CHAT_MODEL_TOOL_MCP_LIST_0_SSE_SSE_ENDPOINT=sse?api_key=bce-v3/ALTAK-WjK8NIh3txZo7rXXEjhri/e2f09d53de961bcaf2609b76c7c7a7e6d0f05da3
+      - AI_AGENT_CONFIG_TABLES_PPTAGENT_MODULE_CHAT_MODEL_TOOL_MCP_LIST_0_SSE_REQUEST_TIMEOUT=500000
     volumes:
       - ./log:/data/log
     logging:
@@ -34,7 +43,7 @@ services:
 
   ## 前端服务，注意 image 如果你有自己的镜像，记得更换。
   ai-draw-io-front:
-    image: registry.cn-hangzhou.aliyuncs.com/fuzhengwei/ai-draw-io-front:1.1
+    image: registry.cn-hangzhou.aliyuncs.com/fuzhengwei/ai-draw-io-front:1.5
 #    image: fuzhengwei/ai-draw-io-front:1.0
     container_name: ai-draw-io-front
     restart: always
@@ -42,7 +51,7 @@ services:
       - "3000:3000"
     environment:
       # 修改 http://192.168.1.110:8091/api/v1 为你的IP地址。
-      - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL:-http://43.143.241.46:8091/api/v1}
+      - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL:-http://81.70.245.73:8091/api/v1}
       - NODE_ENV=production
 
 networks:
