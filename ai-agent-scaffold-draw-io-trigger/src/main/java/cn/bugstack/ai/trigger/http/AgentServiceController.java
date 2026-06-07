@@ -180,7 +180,7 @@ public class AgentServiceController implements IAgentService {
             // Accumulate partial text per author, detect complete JSON lines to flush incrementally
             final java.util.concurrent.ConcurrentHashMap<String, StringBuilder> authorBuffers = new java.util.concurrent.ConcurrentHashMap<>();
 
-            chatService.handleMessageStream(requestDTO.getAgentId(), requestDTO.getUserId(), finalSessionId, requestDTO.getMessage())
+            io.reactivex.rxjava3.disposables.Disposable disposable = chatService.handleMessageStream(requestDTO.getAgentId(), requestDTO.getUserId(), finalSessionId, requestDTO.getMessage())
                     .subscribe(
                             event -> {
                                 try {
@@ -189,12 +189,17 @@ public class AgentServiceController implements IAgentService {
                                     String phase;
                                     switch (author != null ? author : "unknown") {
                                         case "agent_analyst":
+                                        case "agent_ppt_analyst":
                                             phase = "analyzing";
                                             break;
                                         case "agent_drawer":
                                             phase = "drawing";
                                             break;
+                                        case "agent_ppt_generator":
+                                            phase = "generating";
+                                            break;
                                         case "agent_reviewer":
+                                        case "agent_ppt_reviewer":
                                             phase = "reviewing";
                                             break;
                                         default:
@@ -214,6 +219,31 @@ public class AgentServiceController implements IAgentService {
                                     boolean isPartial = event.partial().orElse(false);
 
                                     StringBuilder buffer = authorBuffers.computeIfAbsent(author, k -> new StringBuilder());
+                                    
+                                    String currentActiveLine;
+                                    int lastNewline = buffer.lastIndexOf("\n");
+                                    if (lastNewline >= 0) {
+                                        currentActiveLine = buffer.substring(lastNewline + 1);
+                                    } else {
+                                        currentActiveLine = buffer.toString();
+                                    }
+                                    currentActiveLine = currentActiveLine.trim();
+                                    
+                                    boolean isLikelyJson = currentActiveLine.startsWith("{") || (currentActiveLine.isEmpty() && content.trim().startsWith("{"));
+
+                                    if (!isLikelyJson) {
+                                        // 向前端发送实时的 token 数据，仅对非JSON数据发送，避免前端出现乱码
+                                        try {
+                                            com.alibaba.fastjson.JSONObject tokenMsg = new com.alibaba.fastjson.JSONObject();
+                                            tokenMsg.put("phase", phase);
+                                            com.alibaba.fastjson.JSONObject tokenChunk = new com.alibaba.fastjson.JSONObject();
+                                            tokenChunk.put("type", "token");
+                                            tokenChunk.put("content", content);
+                                            tokenMsg.put("chunk", tokenChunk);
+                                            emitter.send(tokenMsg.toJSONString() + "\n");
+                                        } catch (Exception ignored) {}
+                                    }
+
                                     buffer.append(content);
 
                                     // Check if the buffer contains complete JSON lines we can flush
@@ -250,10 +280,27 @@ public class AgentServiceController implements IAgentService {
                                         }
                                     }
                                 } catch (Exception e) {
-                                    log.error("流式对话发送失败", e);
+                                    throw new RuntimeException(e);
                                 }
                             },
                             error -> {
+                                if (error instanceof IllegalStateException && error.getMessage() != null && error.getMessage().contains("ResponseBodyEmitter has already completed")) {
+                                    log.warn("流式对话已结束(客户端断开或主动完成)");
+                                    return;
+                                }
+                                if (error instanceof java.io.IOException || (error.getMessage() != null && error.getMessage().contains("Broken pipe"))) {
+                                    log.warn("流式对话连接断开: {}", error.getMessage());
+                                    return;
+                                }
+                                // If the cause is one of the above
+                                if (error.getCause() instanceof IllegalStateException && error.getCause().getMessage() != null && error.getCause().getMessage().contains("ResponseBodyEmitter has already completed")) {
+                                    log.warn("流式对话已结束(客户端断开或主动完成)");
+                                    return;
+                                }
+                                if (error.getCause() instanceof java.io.IOException) {
+                                    log.warn("流式对话连接断开: {}", error.getCause().getMessage());
+                                    return;
+                                }
                                 log.error("流式对话异常", error);
                                 try {
                                     com.alibaba.fastjson.JSONObject errMsg = new com.alibaba.fastjson.JSONObject();
@@ -287,6 +334,25 @@ public class AgentServiceController implements IAgentService {
                                 emitter.complete();
                             }
                     );
+
+            emitter.onCompletion(() -> {
+                log.info("流式对话 emitter.onCompletion sessionId:{}", finalSessionId);
+                if (!disposable.isDisposed()) {
+                    disposable.dispose();
+                }
+            });
+            emitter.onTimeout(() -> {
+                log.info("流式对话 emitter.onTimeout sessionId:{}", finalSessionId);
+                if (!disposable.isDisposed()) {
+                    disposable.dispose();
+                }
+            });
+            emitter.onError(e -> {
+                log.info("流式对话 emitter.onError sessionId:{}", finalSessionId);
+                if (!disposable.isDisposed()) {
+                    disposable.dispose();
+                }
+            });
         } catch (Exception e) {
             log.error("流式对话失败", e);
             emitter.completeWithError(e);
@@ -295,7 +361,7 @@ public class AgentServiceController implements IAgentService {
     }
 
     /**
-     * Process a single line: try to parse as drawio JSON, otherwise send as status text.
+     * Process a single line: try to parse as drawio/PPT JSON, otherwise send as status text.
      */
     private void processAndSendLine(ResponseBodyEmitter emitter, String phase, String line) throws Exception {
         try {
@@ -316,9 +382,34 @@ public class AgentServiceController implements IAgentService {
                     
                     return;
                 }
+                
+                // PPT output: send entire JSON as ppt_raw for frontend incremental parsing
+                if ("ppt".equals(type) || json.containsKey("slides")) {
+                    com.alibaba.fastjson.JSONObject wrapper = new com.alibaba.fastjson.JSONObject();
+                    wrapper.put("phase", phase);
+                    com.alibaba.fastjson.JSONObject chunk = new com.alibaba.fastjson.JSONObject();
+                    chunk.put("type", "ppt_raw");
+                    chunk.put("raw", line);
+                    wrapper.put("chunk", chunk);
+                    emitter.send(wrapper.toJSONString() + "\n");
+                    return;
+                }
             }
         } catch (Exception parseEx) {
             // Not a JSON line, fall through to treat as text
+        }
+
+        // Check if this line looks like it might be part of a PPT JSON (contains slide-like structures)
+        // Send as ppt_raw for incremental parsing on the frontend
+        if (line.contains("\"slides\"") || line.contains("\"slideIndex\"") || line.contains("\"elements\"")) {
+            com.alibaba.fastjson.JSONObject wrapper = new com.alibaba.fastjson.JSONObject();
+            wrapper.put("phase", phase);
+            com.alibaba.fastjson.JSONObject chunk = new com.alibaba.fastjson.JSONObject();
+            chunk.put("type", "ppt_raw");
+            chunk.put("raw", line);
+            wrapper.put("chunk", chunk);
+            emitter.send(wrapper.toJSONString() + "\n");
+            return;
         }
 
         // Non-JSON content or unrecognized JSON - send as phase status

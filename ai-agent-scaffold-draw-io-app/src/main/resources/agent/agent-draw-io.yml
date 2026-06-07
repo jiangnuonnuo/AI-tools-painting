@@ -11,11 +11,12 @@ ai:
           module:
             ai-api:
               #              base-url: https://apis.itedus.cn
-              api-key: sk-meujljTf9WblepXMirM2FkGiiEDh1KeNlqfm4ZuKyNWHM3Gy
-              completions-path: v1/chat/completions
+              base-url: https://qianfan.baidubce.com/v2/coding/
+              api-key: bce-v3/ALTAKSP-KkcttQhDmPa4Ixn80YeFK/41018f4fe978c3e12f1c4f862f7bf214da9f61f5
+              completions-path: chat/completions
               embeddings-path: v1/embeddings
             chat-model:
-              model: gpt-5.5
+              model: glm-5.1
               tool-mcp-list:
                 - sse:
                     name: baidu-search
@@ -69,7 +70,11 @@ ai:
 
                   3. 设计要求：
                      - 务必参考指定的 skills 赋予合适的节点与连线 style
-                     - 节点布局合理，从上到下或从左到右排列，y坐标间隔至少80，避免重叠
+                     - 【严格网格布局】：请严格采用数学坐标计算节点位置，切勿随意设定 x/y。
+                       * 起始坐标为 x=100, y=100。
+                       * 同一列的节点，x 坐标相同，y 坐标依次递增（如 100, 250, 400）。
+                       * 同一行的节点，y 坐标相同，x 坐标依次递增（如 100, 300, 500）。
+                     - 【安全间距】：横向间距 >= 150，纵向间距 >= 120，坚决避免任何节点重叠！
                      - 所有 mxCell 的 id 必须唯一且递增（从2开始）
                      - parent 固定为 '1'（除非是子节点如时序图的 activation）
 
@@ -92,11 +97,12 @@ ai:
                      - 逐行解析每个 JSON
                      - 检查所有节点的布局：是否有重叠、坐标是否合理
                      - 检查连线的 source/target 是否指向存在的节点 id
-                     - 检查 XML 语法是否正确
+                     - 检查 XML 语法是否正确，严禁输出残缺或非法的 XML 标签
                      - 如果发现布局问题，调整节点的 x/y 坐标（保持相对位置逻辑不变，只修正重叠和交叉）
+                     - 【极其重要】：不要输出重复的节点或连线！只需要将修正过后的所有节点和连线重新输出一遍即可，以替代原来的图表。
                      - 最终输出必须严格符合以下格式，每行一个 JSON：
-                       a) 先输出修正后的节点：{"type":"drawio_node","id":"2","label":"...","xml":"<mxCell .../>"}  
-                       b) 再输出修正后的连线：{"type":"drawio_edge","id":"e1","label":"...","source":"2","target":"3","xml":"<mxCell .../>"}
+                       a) 先输出所有的节点：{"type":"drawio_node","id":"2","label":"...","xml":"<mxCell .../>"}
+                       b) 再输出所有的连线：{"type":"drawio_edge","id":"e1","label":"...","source":"2","target":"3","xml":"<mxCell .../>"}
                        c) 最后输出完整兜底：{"type":"drawio_done","content":"<完整XML>"}
 
                   3. 如果输入是纯 XML 代码（旧格式兼容）：
@@ -104,7 +110,9 @@ ai:
                      - 输出格式：{"type": "drawio", "content": "完整的XML字符串"}
 
                   4. 关键约束：
-                     - 每个 JSON 必须在一行内输出
+                     - 严禁在输出的 XML 中包含转义符（如 \"），请直接使用正常的引号
+                     - 严禁截断 XML，确保每个标签正确闭合
+                     - 每个 JSON 必须在一行内输出，绝不能跨行
                      - 不要输出 JSON 之外的文字说明
                      - drawio_done 中的 content 必须是完整可加载的 XML
                 output-key: final_result

@@ -10,13 +10,13 @@ ai:
             agent-desc: 人 + AI + PptxGenJS，交互式对话完成 PPT 演示文稿生成。
           module:
             ai-api:
-#              base-url: https://apis.itedus.cn
-              base-url: https://api.code-relay.com
-              api-key: sk-meujljTf9WblepXMirM2FkGiiEDh1KeNlqfm4ZuKyNWHM3Gy
+              #              base-url: https://apis.itedus.cn
+              base-url: https://qianfan.baidubce.com/v2/coding/
+              api-key: bce-v3/ALTAKSP-KkcttQhDmPa4Ixn80YeFK/41018f4fe978c3e12f1c4f862f7bf214da9f61f5
               completions-path: v1/chat/completions
               embeddings-path: v1/embeddings
             chat-model:
-              model: gpt-5.5
+              model: qianfan-code-latest
               tool-mcp-list:
                 - sse:
                     name: baidu-search
@@ -77,6 +77,7 @@ ai:
                   5. **前端自动渲染主题装饰** — 色块/条纹/底栏由前端渲染，你可以用shape做额外自主装饰
                   6. **配色一致性**：深色区域文字FFFFFF，白色区域正文333333
                   7. **宁可留白不要塞满** — 每页3-5个核心信息点
+                  8. **使用高质量配图** — 如果场景需要配图（如封面、插图），请使用 image 类型的元素，content 字段使用 "https://coreva-normal.trae.ai/api/ide/v1/text_to_image?prompt=[URL编码的英文提示词]&image_size=landscape_16_9"。提示词必须是英文且描述具体的画面。
 
                   【输出格式】
                   输出合法 JSON，不要添加 markdown 代码块标记：
