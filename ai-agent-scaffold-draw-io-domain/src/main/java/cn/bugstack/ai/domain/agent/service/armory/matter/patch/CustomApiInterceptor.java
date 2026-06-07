@@ -12,12 +12,19 @@ import java.net.URI;
 
 public class CustomApiInterceptor implements ClientHttpRequestInterceptor {
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(CustomApiInterceptor.class);
+
     @Override
     public ClientHttpResponse intercept(HttpRequest request, byte[] body, ClientHttpRequestExecution execution) throws IOException {
         HttpHeaders headers = request.getHeaders();
         String customBaseUrl = headers.getFirst("X-Custom-Base-Url");
         String customApiKey = headers.getFirst("X-Custom-Api-Key");
         String customCompletionsPath = headers.getFirst("X-Custom-Completions-Path");
+
+        log.info("[CustomApiInterceptor] original URL={}, customBaseUrl={}, customApiKey={}..., customCompletionsPath={}",
+                request.getURI(), customBaseUrl,
+                customApiKey != null && customApiKey.length() > 10 ? customApiKey.substring(0, 10) + "***" : customApiKey,
+                customCompletionsPath);
 
         HttpRequest modifiedRequest = request;
 
@@ -59,8 +66,11 @@ public class CustomApiInterceptor implements ClientHttpRequestInterceptor {
 
                             String newPath = customPath + path;
                             newPath = newPath.replaceAll("//+", "/");
-                            return new URI(customUri.getScheme(), customUri.getUserInfo(), customUri.getHost(), customUri.getPort(), newPath, originalUri.getQuery(), originalUri.getFragment());
+                            URI newUri = new URI(customUri.getScheme(), customUri.getUserInfo(), customUri.getHost(), customUri.getPort(), newPath, originalUri.getQuery(), originalUri.getFragment());
+                            log.info("[CustomApiInterceptor] modified URL={}, Authorization={}", newUri, customApiKey != null ? "Bearer " + customApiKey.substring(0, Math.min(10, customApiKey.length())) + "***" : "(none)");
+                            return newUri;
                         } catch (Exception e) {
+                            log.error("[CustomApiInterceptor] Failed to modify URL", e);
                             return originalUri;
                         }
                     }

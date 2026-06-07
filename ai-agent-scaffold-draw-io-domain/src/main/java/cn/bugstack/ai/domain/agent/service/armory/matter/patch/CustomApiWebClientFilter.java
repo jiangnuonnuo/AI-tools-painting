@@ -10,14 +10,22 @@ import java.net.URI;
 
 public class CustomApiWebClientFilter implements ExchangeFilterFunction {
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(CustomApiWebClientFilter.class);
+
     @Override
     public Mono<ClientResponse> filter(ClientRequest request, ExchangeFunction next) {
         String customBaseUrl = request.headers().getFirst("X-Custom-Base-Url");
         String customApiKey = request.headers().getFirst("X-Custom-Api-Key");
         String customCompletionsPath = request.headers().getFirst("X-Custom-Completions-Path");
 
+        log.info("[CustomApiWebClientFilter] original URL={}, customBaseUrl={}, customApiKey={}..., customCompletionsPath={}",
+                request.url(), customBaseUrl,
+                customApiKey != null && customApiKey.length() > 10 ? customApiKey.substring(0, 10) + "***" : customApiKey,
+                customCompletionsPath);
+
         if (customBaseUrl != null || customApiKey != null) {
             ClientRequest.Builder builder = ClientRequest.from(request);
+            URI newUri = null;
             if (customBaseUrl != null) {
                 try {
                     URI originalUri = request.url();
@@ -52,10 +60,10 @@ public class CustomApiWebClientFilter implements ExchangeFilterFunction {
 
                     String newPath = customPath + path;
                     newPath = newPath.replaceAll("//+", "/");
-                    URI newUri = new URI(customUri.getScheme(), customUri.getUserInfo(), customUri.getHost(), customUri.getPort(), newPath, originalUri.getQuery(), originalUri.getFragment());
+                    newUri = new URI(customUri.getScheme(), customUri.getUserInfo(), customUri.getHost(), customUri.getPort(), newPath, originalUri.getQuery(), originalUri.getFragment());
                     builder.url(newUri);
                 } catch (Exception e) {
-                    // ignore
+                    log.error("[CustomApiWebClientFilter] Failed to modify URL", e);
                 }
             }
             builder.headers(headers -> {
@@ -66,7 +74,11 @@ public class CustomApiWebClientFilter implements ExchangeFilterFunction {
                     headers.set("Authorization", "Bearer " + customApiKey);
                 }
             });
-            return next.exchange(builder.build());
+            ClientRequest newRequest = builder.build();
+            log.info("[CustomApiWebClientFilter] final URL={}, Authorization={}",
+                    newRequest.url(),
+                    newRequest.headers().getOrDefault("Authorization", java.util.List.of("(none)")));
+            return next.exchange(newRequest);
         }
 
         return next.exchange(request);
