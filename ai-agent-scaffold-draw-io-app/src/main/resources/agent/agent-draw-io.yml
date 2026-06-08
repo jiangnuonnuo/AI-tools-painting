@@ -10,12 +10,12 @@ ai:
             agent-desc: 人 + AI + Draw.io，交互式对话完成 draw.io 绘图。
           module:
             ai-api:
-              base-url: https://maas-api.cn-huabei-1.xf-yun.com
-              api-key: fe81b961ccb561c404f844838fa09876:MjUzYTdhMWEyNThiZDBhMTE1NmRjZTk3
-              completions-path: v2/chat/completions
-              embeddings-path: v2/embeddings
+              base-url: https://apis.itedus.cn
+              api-key: sk-S2YffPknMOEbapquA84c9004294248568d1a3fDdAfA137C9
+              completions-path: v1/chat/completions
+              embeddings-path: v1/embeddings
             chat-model:
-              model: xopqwen36v35b
+              model: gpt-5.5
               tool-mcp-list:
                 - sse:
                     name: baidu-search
