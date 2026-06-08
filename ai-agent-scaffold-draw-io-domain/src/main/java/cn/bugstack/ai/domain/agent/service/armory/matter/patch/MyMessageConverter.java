@@ -5,6 +5,7 @@ import com.google.adk.models.LlmRequest;
 import com.google.adk.models.springai.MessageConverter;
 import com.google.genai.types.Content;
 import com.google.genai.types.Part;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.openai.OpenAiChatOptions;
@@ -72,28 +73,34 @@ public class MyMessageConverter extends MessageConverter {
         Prompt llmPrompt = super.toLlmPrompt(llmRequest);
         llmPrompt.getUserMessage().getMedia().addAll(mediaList);
 
-        // 处理自定义 HTTP Headers
-        if (llmRequest.config().isPresent() && 
-            llmRequest.config().get().httpOptions().isPresent() && 
-            llmRequest.config().get().httpOptions().get().headers().isPresent()) {
-            
-            Map<String, String> customHeaders = llmRequest.config().get().httpOptions().get().headers().get();
-            if (customHeaders.containsKey("X-Custom-Base-Url") || customHeaders.containsKey("X-Custom-Api-Key") || customHeaders.containsKey("X-Custom-Completions-Path")) {
-                ChatOptions options = llmPrompt.getOptions();
-                OpenAiChatOptions openAiOptions;
-                if (options instanceof OpenAiChatOptions) {
-                    openAiOptions = (OpenAiChatOptions) options;
-                } else {
-                    openAiOptions = OpenAiChatOptions.builder().build();
-                }
+        // 判断是否需要处理自定义配置（自定义 HTTP Headers 或自定义模型）
+        boolean hasCustomHeaders = llmRequest.config().isPresent() &&
+                llmRequest.config().get().httpOptions().isPresent() &&
+                llmRequest.config().get().httpOptions().get().headers().isPresent() &&
+                (llmRequest.config().get().httpOptions().get().headers().get().containsKey("X-Custom-Base-Url") ||
+                 llmRequest.config().get().httpOptions().get().headers().get().containsKey("X-Custom-Api-Key") ||
+                 llmRequest.config().get().httpOptions().get().headers().get().containsKey("X-Custom-Completions-Path"));
+        boolean hasCustomModel = llmRequest.model().isPresent() && StringUtils.isNotBlank(llmRequest.model().get());
 
+        if (hasCustomHeaders || hasCustomModel) {
+            ChatOptions options = llmPrompt.getOptions();
+            OpenAiChatOptions openAiOptions;
+            if (options instanceof OpenAiChatOptions) {
+                openAiOptions = (OpenAiChatOptions) options;
+            } else {
+                openAiOptions = OpenAiChatOptions.builder().build();
+            }
+
+            // 处理自定义 HTTP Headers
+            if (hasCustomHeaders) {
+                Map<String, String> customHeaders = llmRequest.config().get().httpOptions().get().headers().get();
                 Map<String, String> existingHeaders = openAiOptions.getHttpHeaders();
                 if (existingHeaders == null) {
                     existingHeaders = new HashMap<>();
                 } else {
                     existingHeaders = new HashMap<>(existingHeaders);
                 }
-                
+
                 if (customHeaders.containsKey("X-Custom-Base-Url")) {
                     existingHeaders.put("X-Custom-Base-Url", customHeaders.get("X-Custom-Base-Url"));
                 }
@@ -105,10 +112,16 @@ public class MyMessageConverter extends MessageConverter {
                 }
 
                 openAiOptions.setHttpHeaders(existingHeaders);
-                
-                // 返回一个新的 Prompt 以包含更新后的 options
-                return new Prompt(llmPrompt.getInstructions(), openAiOptions);
             }
+
+            // 处理自定义模型：用户配置的模型优先级高于 ChatModelNode 中配置的默认模型
+            if (hasCustomModel) {
+                String customModel = llmRequest.model().get();
+                openAiOptions.setModel(customModel);
+            }
+
+            // 返回一个新的 Prompt 以包含更新后的 options
+            return new Prompt(llmPrompt.getInstructions(), openAiOptions);
         }
 
         return llmPrompt;
