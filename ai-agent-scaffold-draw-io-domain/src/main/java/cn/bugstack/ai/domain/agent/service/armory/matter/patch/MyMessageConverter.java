@@ -8,8 +8,10 @@ import com.google.genai.types.Part;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.chat.prompt.ChatOptions;
+import org.springframework.ai.model.tool.ToolCallingChatOptions;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.content.Media;
+import org.springframework.ai.tool.ToolCallback;
 import org.springframework.util.MimeType;
 
 import java.net.URI;
@@ -73,20 +75,59 @@ public class MyMessageConverter extends MessageConverter {
         Prompt llmPrompt = super.toLlmPrompt(llmRequest);
         llmPrompt.getUserMessage().getMedia().addAll(mediaList);
 
-        // 判断是否需要处理自定义配置（自定义 HTTP Headers 或自定义模型）
+        // 判断是否有自定义配置（通过 CustomConfigPlugin 传递的 headers 和 model）
+        // hasCustomHeaders：检查是否有 X-Custom-Base-Url / X-Custom-Api-Key / X-Custom-Completions-Path
+        // hasCustomModel：检查 X-Custom-Model-Selected header，这是 CustomConfigPlugin 在用户主动选择自定义模型时设置的标记
+        //   不使用 llmRequest.model().isPresent() 判断，因为无法区分「ADK 内部设置的 model」和「用户自定义的 model」
         boolean hasCustomHeaders = llmRequest.config().isPresent() &&
                 llmRequest.config().get().httpOptions().isPresent() &&
                 llmRequest.config().get().httpOptions().get().headers().isPresent() &&
                 (llmRequest.config().get().httpOptions().get().headers().get().containsKey("X-Custom-Base-Url") ||
                  llmRequest.config().get().httpOptions().get().headers().get().containsKey("X-Custom-Api-Key") ||
                  llmRequest.config().get().httpOptions().get().headers().get().containsKey("X-Custom-Completions-Path"));
-        boolean hasCustomModel = llmRequest.model().isPresent() && StringUtils.isNotBlank(llmRequest.model().get());
 
-        if (hasCustomHeaders || hasCustomModel) {
+        boolean hasCustomModel = llmRequest.config().isPresent() &&
+                llmRequest.config().get().httpOptions().isPresent() &&
+                llmRequest.config().get().httpOptions().get().headers().isPresent() &&
+                "true".equalsIgnoreCase(llmRequest.config().get().httpOptions().get().headers().get().get("X-Custom-Model-Selected"));
+
+        if (hasCustomModel || hasCustomHeaders) {
             ChatOptions options = llmPrompt.getOptions();
             OpenAiChatOptions openAiOptions;
+
             if (options instanceof OpenAiChatOptions) {
+                // 已经是 OpenAiChatOptions，直接使用
                 openAiOptions = (OpenAiChatOptions) options;
+            } else if (options instanceof ToolCallingChatOptions) {
+                // 从 ToolCallingChatOptions 转换为 OpenAiChatOptions，保留 tools
+                OpenAiChatOptions.Builder builder = OpenAiChatOptions.builder();
+                ToolCallingChatOptions toolCallingChatOptions = (ToolCallingChatOptions) options;
+
+                // 复制 toolCallbacks 和 toolNames，避免 tools 丢失
+                List<ToolCallback> toolCallbacks = toolCallingChatOptions.getToolCallbacks();
+                if (toolCallbacks != null && !toolCallbacks.isEmpty()) {
+                    builder.toolCallbacks(toolCallbacks);
+                }
+                java.util.Set<String> toolNames = toolCallingChatOptions.getToolNames();
+                if (toolNames != null && !toolNames.isEmpty()) {
+                    builder.toolNames(toolNames);
+                }
+
+                // 复制其他参数
+                if (toolCallingChatOptions.getTemperature() != null) {
+                    builder.temperature(toolCallingChatOptions.getTemperature());
+                }
+                if (toolCallingChatOptions.getMaxTokens() != null) {
+                    builder.maxTokens(toolCallingChatOptions.getMaxTokens());
+                }
+                if (toolCallingChatOptions.getTopP() != null) {
+                    builder.topP(toolCallingChatOptions.getTopP());
+                }
+                if (toolCallingChatOptions.getModel() != null) {
+                    builder.model(toolCallingChatOptions.getModel());
+                }
+
+                openAiOptions = builder.build();
             } else {
                 openAiOptions = OpenAiChatOptions.builder().build();
             }

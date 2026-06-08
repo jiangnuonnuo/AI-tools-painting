@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import cn.bugstack.ai.domain.agent.service.chat.CustomApiConfigManager;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  *
@@ -123,6 +124,7 @@ public class AgentServiceController implements IAgentService {
                     .apiKey(requestDTO.getCustomApiKey())
                     .completionsPath(requestDTO.getCustomCompletionsPath())
                     .model(requestDTO.getCustomModel())
+                    .customModelSelected(StringUtils.isNotBlank(requestDTO.getCustomModel()))
                     .build();
             CustomApiConfigManager.setConfig(sessionId, config);
 
@@ -194,6 +196,7 @@ public class AgentServiceController implements IAgentService {
                     .apiKey(requestDTO.getCustomApiKey())
                     .completionsPath(requestDTO.getCustomCompletionsPath())
                     .model(requestDTO.getCustomModel())
+                    .customModelSelected(StringUtils.isNotBlank(requestDTO.getCustomModel()))
                     .build();
             CustomApiConfigManager.setConfig(finalSessionId, config);
 

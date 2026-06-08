@@ -48,17 +48,28 @@ public class CustomConfigPlugin extends BasePlugin {
                 headers.putAll(httpOptionsBuilder.build().headers().get());
             }
 
-            if (StringUtils.isNotBlank(config.getBaseUrl())) {
+            // 判断是否有任何自定义配置（baseUrl、apiKey、completionsPath 中至少一个非空，或用户主动选了自定义模型）
+            boolean hasCustomBaseUrl = StringUtils.isNotBlank(config.getBaseUrl());
+            boolean hasCustomApiKey = StringUtils.isNotBlank(config.getApiKey());
+            boolean hasCustomCompletionsPath = StringUtils.isNotBlank(config.getCompletionsPath());
+
+            if (hasCustomBaseUrl) {
                 headers.put("X-Custom-Base-Url", config.getBaseUrl());
             }
-            if (StringUtils.isNotBlank(config.getApiKey())) {
+            if (hasCustomApiKey) {
                 headers.put("X-Custom-Api-Key", config.getApiKey());
             }
-            if (StringUtils.isNotBlank(config.getCompletionsPath())) {
+            if (hasCustomCompletionsPath) {
                 headers.put("X-Custom-Completions-Path", config.getCompletionsPath());
             }
-            if (StringUtils.isNotBlank(config.getModel())) {
+
+            // 关键：只有当用户主动选择了自定义模型时才设置 requestBuilder.model()
+            // config.isCustomModelSelected() 由 Controller 层根据前端传入的 customModel 字段是否非空来设置
+            // 这样可以区分「用户选默认模型」和「用户选自定义模型」两种情况
+            if (config.isCustomModelSelected() && StringUtils.isNotBlank(config.getModel())) {
                 requestBuilder.model(config.getModel());
+                // 同时在 headers 中传递标记，供 MyMessageConverter 判断
+                headers.put("X-Custom-Model-Selected", "true");
             }
 
             httpOptionsBuilder.headers(headers);

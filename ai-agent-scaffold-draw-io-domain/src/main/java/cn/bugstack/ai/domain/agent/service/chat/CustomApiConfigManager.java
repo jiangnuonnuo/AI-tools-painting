@@ -32,11 +32,14 @@ public class CustomApiConfigManager {
         private String apiKey;
         private String completionsPath;
         private String model;
+        /** 是否为用户主动选择的自定义模型（区别于默认模型） */
+        private boolean customModelSelected;
 
         public String getBaseUrl() { return baseUrl; }
         public String getApiKey() { return apiKey; }
         public String getCompletionsPath() { return completionsPath; }
         public String getModel() { return model; }
+        public boolean isCustomModelSelected() { return customModelSelected; }
 
         public static Builder builder() {
             return new Builder();
@@ -47,11 +50,13 @@ public class CustomApiConfigManager {
             private String apiKey;
             private String completionsPath;
             private String model;
+            private boolean customModelSelected;
 
             public Builder baseUrl(String baseUrl) { this.baseUrl = baseUrl; return this; }
             public Builder apiKey(String apiKey) { this.apiKey = apiKey; return this; }
             public Builder completionsPath(String completionsPath) { this.completionsPath = completionsPath; return this; }
             public Builder model(String model) { this.model = model; return this; }
+            public Builder customModelSelected(boolean customModelSelected) { this.customModelSelected = customModelSelected; return this; }
 
             public CustomApiConfig build() {
                 CustomApiConfig config = new CustomApiConfig();
@@ -59,6 +64,7 @@ public class CustomApiConfigManager {
                 config.apiKey = this.apiKey;
                 config.completionsPath = this.completionsPath;
                 config.model = this.model;
+                config.customModelSelected = this.customModelSelected;
                 return config;
             }
         }
