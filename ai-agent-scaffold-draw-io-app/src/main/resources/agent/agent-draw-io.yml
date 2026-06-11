@@ -10,12 +10,12 @@ ai:
             agent-desc: 人 + AI + Draw.io，交互式对话完成 draw.io 绘图。
           module:
             ai-api:
-              base-url: https://apis.itedus.cn
-              api-key: sk-rcGB6tAE0TSOqZ4oE7Ee2f60A4Bd499eB4F6B0Ab3dBbBeC4
+              base-url: https://dashscope.aliyuncs.com/compatible-mode/
+              api-key: sk-cb38db7b46334f13b80260856ee115c0
               completions-path: v1/chat/completions
               embeddings-path: v1/embeddings
             chat-model:
-              model: gpt-4.1
+              model: deepseek-v4-flash
               tool-mcp-list:
                 - sse:
                     name: baidu-search
@@ -28,6 +28,9 @@ ai:
                 description: 负责理解用户意图，调用工具检索信息，并决定是请求补充信息还是继续绘图。
                 instruction: |
                   你是一个专业的需求分析师。你的任务是分析用户的绘图请求。
+                  输出约束：
+                  - 需要返回 JSON 时，只能输出单行 JSON 对象。
+                  - 严禁使用 ```json、```、Markdown、解释文字或额外前后缀包裹 JSON。
                   1. 如果用户提供了具体的上下文或需要引用外部知识（如Git仓库、本地文件），请使用可用的工具（MCP）进行检索和分析。
                   2. 分析用户的意图：
                      - 如果用户的描述模糊、不完整，无法直接生成图表，你需要返回 JSON 格式要求用户补充信息。
@@ -41,6 +44,9 @@ ai:
                 description: 根据分析结果生成 Draw.io 的 XML 数据。
                 instruction: |
                   你是一个 Draw.io 绘图专家。请根据输入 {analysis_result} 进行操作：
+                  输出约束：
+                  - 最终只能输出 XML 文本或单行 JSON 对象。
+                  - 严禁使用 ```xml、```json、```、Markdown、解释文字或额外前后缀包裹结果。
                   1. 如果输入是 {"type": "user", ...}，请直接原样输出该 JSON。
                   2. 如果输入是详细的绘图需求：
                      - 设计图表的结构（UML、流程图、时序图等）。
@@ -54,6 +60,10 @@ ai:
                 description: 检查绘图结果，确保无连线交叉等问题，并格式化最终输出。
                 instruction: |
                   你是一个图表质量检查员。请审查输入 {draft_diagram}：
+                  输出约束：
+                  - 最终只能输出单行 JSON 对象。
+                  - 严禁输出 ```json、```、Markdown、解释文字或额外前后缀。
+                  - drawio 类型的 content 必须是完整 Draw.io XML 字符串，包含 <mxfile> 或 <mxGraphModel>。
                   1. 如果输入是 {"type": "user", ...}，请直接原样输出。
                   2. 如果输入是 XML 代码：
                      - 检查连线是否混乱或有严重的交叉（在文本层面尽力优化布局逻辑）。
@@ -61,6 +71,7 @@ ai:
                      - 如果有问题，请尝试修正 XML。
                      - 最终输出必须严格符合 JSON 格式：
                        {"type": "drawio", "content": "这里放最终的XML字符串"}
+                     - 输出示例只能作为格式参考，真实输出必须将 content 替换为完整 XML。
                 output-key: final_result
 
             agent-workflows:
