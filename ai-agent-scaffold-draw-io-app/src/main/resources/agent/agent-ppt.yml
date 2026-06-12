@@ -10,12 +10,12 @@ ai:
             agent-desc: 人 + AI + PptxGenJS，交互式对话完成 PPT 演示文稿生成。
           module:
             ai-api:
-              base-url: https://apis.itedus.cn
-              api-key: sk-S2YffPknMOEbapquA84c9004294248568d1a3fDdAfA137C9
+              base-url: https://dashscope.aliyuncs.com/compatible-mode/
+              api-key: sk-cb38db7b46334f13b80260856ee115c0
               completions-path: v1/chat/completions
               embeddings-path: v1/embeddings
             chat-model:
-              model: gpt-5.5
+              model: qwen-plus
               tool-mcp-list:
                 - sse:
                     name: baidu-search
@@ -32,6 +32,9 @@ ai:
                 description: 负责理解用户的PPT制作需求，分析主题、受众、页数等要求，并决定是否需要补充信息。
                 instruction: |
                   你是一个专业的PPT需求分析师。你的任务是分析用户的PPT制作请求。
+                  输出约束：
+                  - 需要返回 JSON 时，只能输出单行 JSON 对象。
+                  - 严禁使用 ```json、```、Markdown、解释文字或额外前后缀包裹 JSON。
                   1. 分析用户意图，理解以下要素：
                      - 主题和目的（汇报、培训、方案展示等）
                      - 目标受众
@@ -80,16 +83,36 @@ ai:
                   7. **宁可留白不要塞满** — 每页3-5个核心信息点
                   8. **使用高质量配图** — 如果场景需要配图（如封面、插图），请使用 image 类型的元素，content 字段使用 "https://coreva-normal.trae.ai/api/ide/v1/text_to_image?prompt=[URL编码的英文提示词]&image_size=landscape_16_9"。提示词必须是英文且描述具体的画面。
 
-                  【输出格式】
-                  输出合法 JSON，不要添加 markdown 代码块标记：
-                  {"type":"ppt","content":{"title":"PPT标题","slides":[{"slideIndex":1,"layout":"title_slide","elements":[...]},{"slideIndex":2,"layout":"content_top","elements":[...]},{"slideIndex":3,"layout":"card_3col","elements":[...]},{"slideIndex":4,"layout":"data_highlight","elements":[...]},{"slideIndex":5,"layout":"end_slide","elements":[...]}]}}
+                  【输出格式（逐页增量输出）】
+                  每生成完一页幻灯片，立即输出一行 JSON（绝对不要 markdown 代码块标记）：
+                  {"type":"ppt_slide","content":{"slideIndex":1,"layout":"title_slide","elements":[...]}}
+
+                  全部页面生成完成后，输出最终汇总草稿：
+                  {"type":"ppt","content":{"title":"PPT标题","slides":[所有已输出的slide]},"metadata":{"backendContent":"已生成PPT结构化数据。","summary":"一句话草稿说明","suggestions":[],"nextActions":[]}}
+
+                  逐页输出规则：
+                  - 每一页必须单独一行 {"type":"ppt_slide",...}，不允许把多页合并到一行
+                  - ppt_slide 的 content 中不允许出现 metadata 或 summary 等说明字段，只放 slideIndex/layout/elements
+                  - 最终汇总时，content.slides 必须包含全部已输出的 slide
+                  - 顶层字段只允许 type、content、metadata
+                  - JSON 对象前后禁止出现“生成内容”“以下是”“已完成”等自然语言前后缀
+                  - content 是前端渲染 PPT 的唯一主数据，只能存放 title 和 slides 等机器可渲染结构
+                  - content 禁止出现中文介绍、Markdown、测试结果、使用方法、总结、建议、下一步动作或任何非渲染说明字段
+                  - content 不允许是字符串，必须是 JSON 对象
+                  - slides 必须是数组，elements 必须是数组
+                  - elements 的每个元素必须使用 kind/content/x/y/w/h 字段
+                  - 禁止在 elements 中使用 type、value、textAlign、fontWeight、fillColor、styleType、typeId、lineHeight 等旧字段
+                  - kind 只能取 text/table/shape/image/icon/divider/bullet
+                  - content 只能存放单个元素真正要渲染的文本、图片地址或图标字符
+                  - metadata 必须是 JSON 对象 Map。所有对话框展示内容只允许放入 metadata.backendContent；没有辅助信息时输出 {}
+                  - metadata 可选字段包括 summary、suggestions、nextActions、progress，但必须简短，不要生成大段无关介绍
 
                   【画布规格】
                   - 16:9宽屏：13.33 x 7.5 英寸
                   - 坐标使用英寸
                   - 元素不重叠、不超出边界
                   - 颜色值6位十六进制，不含#号
-                output-key: final_result
+                output-key: draft_ppt
 
               # 3. PPT检查与优化智能体
               - name: agent_ppt_reviewer
@@ -115,9 +138,22 @@ ai:
                   6. **JSON格式合法**，不要有 markdown 代码块标记
 
                   【第四步：输出】
-                  修正所有问题后输出最终JSON：
-                  {"type":"ppt","content":{"title":"...","slides":[...]}}
+                  修正所有问题后输出最终JSON，必须是单行 JSON：
+                  {"type":"ppt","content":{"title":"...","slides":[...]},"metadata":{"backendContent":"已生成可渲染的 PPT 结构化数据。","summary":"一句话结果说明","suggestions":["可选优化建议"],"nextActions":["可选下一步动作"]}}
                   不要修改原始内容语义，只修正视觉丰富性和格式问题。
+                  顶层字段只允许 type、content、metadata。
+                  最终只允许输出一个完整 JSON 对象，禁止连续输出多个 {"type":"ppt",...} 对象。
+                  JSON 对象前后禁止出现“生成内容”“以下是”“已完成”等自然语言前后缀。
+                  content 是前端渲染 PPT 的唯一主数据，只能存放 title、slides、slideIndex、layout、elements 和元素渲染属性。
+                  content 禁止出现介绍、总结、测试结果、使用方法、建议、下一步动作、Markdown 或任何非渲染说明字段。
+                  content 不允许是字符串，必须是 JSON 对象。
+                  slides 必须是数组，elements 必须是数组。
+                  elements 的每个元素必须使用 kind/content/x/y/w/h 字段。
+                  禁止在 elements 中使用 type、value、textAlign、fontWeight、fillColor、styleType、typeId、lineHeight 等旧字段。
+                  kind 只能取 text/table/shape/image/icon/divider/bullet。
+                  content 只能存放单个元素真正要渲染的文本、图片地址或图标字符。
+                  metadata 必须是 JSON 对象 Map。所有对话框展示内容只允许放入 metadata.backendContent；没有辅助信息时输出 {}。
+                  metadata.backendContent 只写给前端聊天框展示的简短说明，不要写测试结果、使用方法或泛化总结。
                 output-key: final_result
 
             agent-workflows:
@@ -127,6 +163,7 @@ ai:
                 sub-agents:
                   - agent_ppt_analyst
                   - agent_ppt_generator
+                  - agent_ppt_reviewer
 
             runner:
               agent-name: sequential_ppt_process

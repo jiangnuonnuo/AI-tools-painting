@@ -17,9 +17,9 @@ public class LangChain4jApiTest {
 
     public static void main(String[] args) {
         OpenAiChatModel model = OpenAiChatModel.builder()
-                .baseUrl("https://apis.itedus.cn/v1")
-                .apiKey("sk-wtBOjyNviG9NtbYn7f2fF8A2203048Aa86Be6f0f0b824dB9")
-                .modelName("gpt-4o")
+                .baseUrl("https://maas-api.cn-huabei-1.xf-yun.com/v2")
+                .apiKey("51e88b0bdca7ec05e9add24ef08c572a:NzllODVhZGE2MTUyNGY2MGMwMDg4MDRl")
+                .modelName("xopqwen35v35b")
                 .build();
 
         String chat = model.chat("hi 你好哇!");

@@ -11,7 +11,7 @@ ai:
           module:
             ai-api:
               base-url: https://dashscope.aliyuncs.com/compatible-mode/
-              api-key: sk-cb38db7b46334f13b80260856ee115c0
+              api-key: sk-6066c48eb0a9478088dfc653a74216af
               completions-path: v1/chat/completions
               embeddings-path: v1/embeddings
             chat-model:
@@ -58,6 +58,7 @@ ai:
                   输出约束：
                   - 最终只能输出 XML 文本或单行 JSON 对象。
                   - 严禁使用 ```xml、```json、```、Markdown、解释文字或额外前后缀包裹结果。
+                  - drawio_done.content 只能存放完整 Draw.io XML，不得混入介绍、总结、使用方法、测试结果、建议或下一步说明。
                   1. 如果输入是 {"type": "user", ...}，请直接原样输出该 JSON。
 
                   2. 如果输入是详细的绘图需求，你需要逐个节点输出，每行一个 JSON 对象：
@@ -88,6 +89,7 @@ ai:
                      - JSON 之间用换行符分隔
                      - 不要输出任何 JSON 之外的文字说明
                      - drawio_done 中的 content 字段必须是完整的、可直接加载的 Draw.io XML
+                     - drawio_done 中的 content 字段禁止出现 XML 之外的自然语言说明
                 output-key: draft_diagram
 
               # 3. 检查与优化智能体
@@ -99,7 +101,16 @@ ai:
                   输出约束：
                   - 最终只能输出单行 JSON 对象。
                   - 严禁输出 ```json、```、Markdown、解释文字或额外前后缀。
+                  - 顶层字段只允许 type、content、metadata。
                   - drawio 类型的 content 必须是完整 Draw.io XML 字符串，包含 <mxfile> 或 <mxGraphModel>。
+                  - content 是前端渲染 draw.io 的唯一主数据，只能存放 XML 代码。
+                  - content 禁止出现中文介绍、Markdown、测试结果、使用方法、总结、建议、下一步动作或任何 XML 之外的自然语言。
+                  - 最终只允许输出一个完整 JSON 对象，禁止连续输出多个 {"type":"drawio",...} 对象。
+                  - JSON 对象前后禁止出现“生成内容”“以下是”“已完成”等自然语言前后缀。
+                  - content 不允许是对象或数组，必须是 XML 字符串。
+                  - metadata 必须是 JSON 对象 Map。没有辅助信息时输出 {}，不得输出字符串、数组或 null。
+                  - 所有对话框展示内容只允许放入 metadata.backendContent。
+                  - metadata 可选字段包括 summary、suggestions、nextActions、progress，但必须简短，不要生成大段无关介绍。
                   1. 如果输入是 {"type": "user", ...}，请直接原样输出。
 
                   2. 如果输入包含多行 JSON（drawio_node / drawio_edge / drawio_done）：
@@ -108,29 +119,21 @@ ai:
                      - 检查连线的 source/target 是否指向存在的节点 id
                      - 检查 XML 语法是否正确，严禁输出残缺或非法的 XML 标签
                      - 如果发现布局问题，调整节点的 x/y 坐标（保持相对位置逻辑不变，只修正重叠和交叉）
-                     - 【极其重要】：不要输出重复的节点或连线！只需要将修正过后的所有节点和连线重新输出一遍即可，以替代原来的图表。
-                     - 最终输出必须严格符合以下格式，每行一个 JSON：
-                       a) 先输出所有的节点：{"type":"drawio_node","id":"2","label":"...","xml":"<mxCell .../>"}
-                       b) 再输出所有的连线：{"type":"drawio_edge","id":"e1","label":"...","source":"2","target":"3","xml":"<mxCell .../>"}
-                       c) 最后输出完整兜底：{"type":"drawio_done","content":"<完整XML>"}
+                     - 【极其重要】：不要输出重复的节点或连线，不要再输出 drawio_node / drawio_edge / drawio_done。
+                     - 最终只输出一个 JSON 对象：
+                       {"type":"drawio","content":"<完整XML>","metadata":{"backendContent":"已生成可渲染的 draw.io 图表。","summary":"一句话结果说明","suggestions":["可选优化建议"],"nextActions":["可选下一步动作"]}}
 
                   3. 如果输入是纯 XML 代码（旧格式兼容）：
                      - 检查并优化 XML
-                     - 输出格式：{"type": "drawio", "content": "完整的XML字符串"}
+                     - 输出格式：{"type":"drawio","content":"完整的XML字符串","metadata":{"backendContent":"已生成可渲染的 draw.io 图表。"}}
 
                   4. 关键约束：
-                     - 严禁在输出的 XML 中包含转义符（如 \"），请直接使用正常的引号
+                     - 优先在 XML 属性中使用单引号，避免 JSON 字符串出现大量转义符
                      - 严禁截断 XML，确保每个标签正确闭合
                      - 每个 JSON 必须在一行内输出，绝不能跨行
                      - 不要输出 JSON 之外的文字说明
-                     - drawio_done 中的 content 必须是完整可加载的 XML
-                  2. 如果输入是 XML 代码：
-                     - 检查连线是否混乱或有严重的交叉（在文本层面尽力优化布局逻辑）。
-                     - 检查 XML 语法是否正确。
-                     - 如果有问题，请尝试修正 XML。
-                     - 最终输出必须严格符合 JSON 格式：
-                       {"type": "drawio", "content": "这里放最终的XML字符串"}
-                     - 输出示例只能作为格式参考，真实输出必须将 content 替换为完整 XML。
+                     - content 必须是完整可加载的 XML
+                     - metadata.backendContent 只写给前端聊天框展示的简短说明，不要写测试结果、使用方法或泛化总结
                 output-key: final_result
 
             agent-workflows:
@@ -154,10 +157,11 @@ ai:
               # 对外；定义一个串行工作流，按顺序执行分析、绘图、检查
               - type: sequential
                 name: sequential_draw_process
-                description: 标准绘图流程：分析 -> 绘图
+                description: 标准绘图流程：分析 -> 绘图 -> 检查收敛
                 sub-agents:
                   - agent_analyst
                   - agent_drawer
+                  - agent_reviewer
 
             runner:
               # 指定入口为串行工作流，这是最稳健的配置
