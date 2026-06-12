@@ -3,6 +3,7 @@ package cn.bugstack.ai.domain.agent.service.armory.matter.plugin;
 import com.google.adk.agents.BaseAgent;
 import com.google.adk.agents.CallbackContext;
 import com.google.adk.agents.InvocationContext;
+import com.google.adk.agents.RunConfig;
 import com.google.adk.models.LlmRequest;
 import com.google.adk.models.LlmResponse;
 import com.google.adk.plugins.BasePlugin;
@@ -26,8 +27,21 @@ public class MyTestPlugin extends BasePlugin {
     }
 
     @Override
+    public Maybe<Content> beforeRunCallback(InvocationContext invocationContext) {
+
+        RunConfig runConfig = invocationContext.runConfig();
+
+        BaseAgent agent = invocationContext.agent();
+
+        return super.beforeRunCallback(invocationContext);
+    }
+
+    @Override
     public Maybe<Content> onUserMessageCallback(InvocationContext invocationContext, Content userMessage) {
         log.info("用户输入信息:{}", userMessage.text());
+
+
+
         return super.onUserMessageCallback(invocationContext, userMessage);
     }
 

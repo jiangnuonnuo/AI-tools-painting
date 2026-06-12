@@ -8,6 +8,7 @@ import cn.bugstack.ai.domain.agent.service.IChatService;
 import cn.bugstack.ai.domain.agent.service.armory.factory.DefaultArmoryFactory;
 import cn.bugstack.ai.types.enums.ResponseCode;
 import cn.bugstack.ai.types.exception.AppException;
+import com.google.adk.agents.RunConfig;
 import com.google.adk.events.Event;
 import com.google.adk.runner.InMemoryRunner;
 import com.google.adk.sessions.Session;
@@ -62,11 +63,15 @@ public class ChatService implements IChatService {
         String appName = aiAgentRegisterVO.getAppName();
         InMemoryRunner runner = aiAgentRegisterVO.getRunner();
 
-        return userSessions.computeIfAbsent(userId, uid -> {
-            Session session = runner.sessionService().createSession(appName, uid)
-                    .blockingGet();
-            return session.id();
-        });
+        Session session = runner.sessionService().createSession(appName, userId)
+                .blockingGet();
+        
+        String sessionId = session.id();
+        // Update cache so subsequent handleMessage calls without sessionId can use this new session
+        String cacheKey = userId + "_" + agentId;
+        userSessions.put(cacheKey, sessionId);
+        
+        return sessionId;
     }
 
     @Override
@@ -78,7 +83,11 @@ public class ChatService implements IChatService {
             throw new AppException(ResponseCode.E0001.getCode());
         }
 
-        String sessionId = createSession(agentId, userId);
+        String cacheKey = userId + "_" + agentId;
+        String sessionId = userSessions.get(cacheKey);
+        if (sessionId == null) {
+            sessionId = createSession(agentId, userId);
+        }
 
         return handleMessage(agentId, userId, sessionId, message);
     }
@@ -114,7 +123,9 @@ public class ChatService implements IChatService {
         InMemoryRunner runner = aiAgentRegisterVO.getRunner();
 
         Content userMsg = Content.fromParts(Part.fromText(message));
-        return runner.runAsync(userId, sessionId, userMsg);
+        // Enable SSE streaming mode so LLM produces partial events (per-token)
+        RunConfig runConfig = RunConfig.builder().setStreamingMode(RunConfig.StreamingMode.SSE).build();
+        return runner.runAsync(userId, sessionId, userMsg, runConfig);
     }
 
     @Override

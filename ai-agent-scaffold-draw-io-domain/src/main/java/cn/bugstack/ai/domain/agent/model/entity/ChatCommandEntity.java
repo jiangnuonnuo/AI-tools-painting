@@ -32,6 +32,12 @@ public class ChatCommandEntity {
 
     private List<Content.InlineData> inlineDatas;
 
+    // 自定义配置
+    private String customBaseUrl;
+    private String customApiKey;
+    private String customCompletionsPath;
+    private String customModel;
+
     @Data
     public static class Content {
 

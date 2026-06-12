@@ -1,12 +1,8 @@
 package cn.bugstack.ai.domain.agent.model.valobj.enums;
 
-import lombok.AllArgsConstructor;
 import lombok.Getter;
-import lombok.NoArgsConstructor;
 
 @Getter
-@AllArgsConstructor
-@NoArgsConstructor
 public enum AgentTypeEnum {
 
     Loop("循环执行", "loop", "loopAgentNode"),
@@ -18,6 +14,12 @@ public enum AgentTypeEnum {
     private String name;
     private String type;
     private String node;
+
+    AgentTypeEnum(String name, String type, String node) {
+        this.name = name;
+        this.type = type;
+        this.node = node;
+    }
 
     public static AgentTypeEnum formType(String type) {
         if (type == null) {
