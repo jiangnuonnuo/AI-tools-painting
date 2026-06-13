@@ -18,6 +18,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import cn.bugstack.ai.domain.agent.service.chat.CustomApiConfigManager;
+import cn.bugstack.ai.trigger.http.support.ChatStreamJsonAccumulator;
 import cn.bugstack.ai.trigger.http.support.ChatStreamResponseFormatter;
 import org.apache.commons.lang3.StringUtils;
 
@@ -183,7 +184,7 @@ public class AgentServiceController implements IAgentService {
                     .build();
             CustomApiConfigManager.setConfig(finalSessionId, config);
 
-            final java.util.concurrent.ConcurrentHashMap<String, StringBuilder> authorBuffers = new java.util.concurrent.ConcurrentHashMap<>();
+            final java.util.concurrent.ConcurrentHashMap<String, ChatStreamJsonAccumulator> authorAccumulators = new java.util.concurrent.ConcurrentHashMap<>();
             final AtomicInteger seq = new AtomicInteger(0);
 
             io.reactivex.rxjava3.disposables.Disposable disposable = chatService.handleMessageStream(requestDTO.getAgentId(), requestDTO.getUserId(), finalSessionId, requestDTO.getMessage())
@@ -220,65 +221,10 @@ public class AgentServiceController implements IAgentService {
                                         return;
                                     }
 
-                                    boolean isPartial = event.partial().orElse(false);
-
-                                    StringBuilder buffer = authorBuffers.computeIfAbsent(author, k -> new StringBuilder());
-
-                                    String currentActiveLine;
-                                    int lastNewline = buffer.lastIndexOf("\n");
-                                    if (lastNewline >= 0) {
-                                        currentActiveLine = buffer.substring(lastNewline + 1);
-                                    } else {
-                                        currentActiveLine = buffer.toString();
-                                    }
-                                    currentActiveLine = currentActiveLine.trim();
-
-                                    boolean isLikelyJson = currentActiveLine.startsWith("{") || (currentActiveLine.isEmpty() && content.trim().startsWith("{"));
-
-                                    if (!isLikelyJson) {
-                                        try {
-                                            com.alibaba.fastjson.JSONObject tokenMsg = new com.alibaba.fastjson.JSONObject();
-                                            tokenMsg.put("seq", seq.getAndIncrement());
-                                            tokenMsg.put("phase", phase);
-                                            tokenMsg.put("author", author);
-                                            tokenMsg.put("event", "process_delta");
-                                            tokenMsg.put("renderable", false);
-                                            tokenMsg.put("final", false);
-                                            com.alibaba.fastjson.JSONObject tokenChunk = new com.alibaba.fastjson.JSONObject();
-                                            tokenChunk.put("type", "token");
-                                            tokenChunk.put("content", content);
-                                            tokenMsg.put("chunk", tokenChunk);
-                                            emitter.send(tokenMsg.toJSONString() + "\n");
-                                        } catch (Exception ignored) {}
-                                    }
-
-                                    buffer.append(content);
-
-                                    String accumulated = buffer.toString();
-
-                                    if (!isPartial || accumulated.contains("\n")) {
-                                        String[] lines = accumulated.split("\n", -1);
-                                        String remaining = lines[lines.length - 1];
-
-                                        buffer.setLength(0);
-                                        if (!remaining.isEmpty()) {
-                                            buffer.append(remaining);
-                                        }
-
-                                        int processUpTo = isPartial ? lines.length - 1 : lines.length;
-                                        for (int i = 0; i < processUpTo; i++) {
-                                            String line = lines[i].trim();
-                                            if (line.isEmpty()) continue;
-                                            processAndSendLine(emitter, phase, author, seq, line);
-                                        }
-                                    }
-
-                                    if (!isPartial) {
-                                        String remaining = buffer.toString().trim();
-                                        buffer.setLength(0);
-                                        if (!remaining.isEmpty()) {
-                                            processAndSendLine(emitter, phase, author, seq, remaining);
-                                        }
+                                    ChatStreamJsonAccumulator accumulator = authorAccumulators.computeIfAbsent(author, k -> new ChatStreamJsonAccumulator());
+                                    List<ChatStreamJsonAccumulator.Segment> segments = accumulator.append(content);
+                                    for (ChatStreamJsonAccumulator.Segment segment : segments) {
+                                        processAndSendSegment(emitter, phase, author, seq, segment);
                                     }
                                 } catch (Exception e) {
                                     throw new RuntimeException(e);
@@ -319,12 +265,15 @@ public class AgentServiceController implements IAgentService {
                                 emitter.completeWithError(error);
                             },
                             () -> {
-                                for (StringBuilder buf : authorBuffers.values()) {
-                                    String remaining = buf.toString().trim();
-                                    if (!remaining.isEmpty()) {
+                                for (java.util.Map.Entry<String, ChatStreamJsonAccumulator> entry : authorAccumulators.entrySet()) {
+                                    String author = entry.getKey();
+                                    ChatStreamJsonAccumulator accumulator = entry.getValue();
+                                    List<ChatStreamJsonAccumulator.Segment> segments = accumulator.flush();
+                                    for (ChatStreamJsonAccumulator.Segment segment : segments) {
                                         try {
-                                            processAndSendLine(emitter, "done", "system", seq, remaining);
-                                        } catch (Exception ignored) {}
+                                            processAndSendSegment(emitter, "done", author, seq, segment);
+                                        } catch (Exception ignored) {
+                                        }
                                     }
                                 }
                                 try {
@@ -386,6 +335,21 @@ public class AgentServiceController implements IAgentService {
         if (formatResult.isDrawPauseRequired()) {
             Thread.sleep(250);
         }
+    }
+
+    /**
+     * description: 处理聚合后的流式片段，转换为统一响应协议后发送到前端。
+     *
+     * @param emitter input HTTP 流式响应发送器
+     * @param phase   input 当前智能体执行阶段
+     * @param author  input 当前输出的 agent 名称
+     * @param seq     input 流式序号计数器
+     * @param segment input 聚合后的完整 JSON 或普通文本片段
+     * @throws Exception output 发送失败时抛出异常
+     */
+    private void processAndSendSegment(ResponseBodyEmitter emitter, String phase, String author, AtomicInteger seq,
+                                       ChatStreamJsonAccumulator.Segment segment) throws Exception {
+        processAndSendLine(emitter, phase, author, seq, segment.getContent());
     }
 
     /**
