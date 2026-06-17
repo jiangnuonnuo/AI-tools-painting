@@ -19,6 +19,7 @@ public class ChatResponseParser {
     private static final String TYPE_DRAWIO = "drawio";
     private static final String TYPE_DRAWIO_DONE = "drawio_done";
     private static final String TYPE_PPT = "ppt";
+    private static final String TYPE_PROMPT = "prompt";
 
     /**
      * description: 解析智能体消息列表的最后一条输出，返回稳定的对话响应结构。
@@ -54,6 +55,10 @@ public class ChatResponseParser {
         }
 
         if (TYPE_PPT.equals(responseType) && !isPptContent(parsedResponseDTO.getContent())) {
+            return fallbackResponseDTO;
+        }
+
+        if (TYPE_PROMPT.equals(responseType) && !isPromptContent(parsedResponseDTO.getContent())) {
             return fallbackResponseDTO;
         }
 
@@ -213,6 +218,20 @@ public class ChatResponseParser {
 
         JSONObject contentJsonObject = (JSONObject) content;
         return contentJsonObject.containsKey("slides");
+    }
+
+    /**
+     * description: 校验 Prompt 类型的 content 是否为非空纯文本。
+     *
+     * @param content input Prompt 响应内容
+     * @return output true 表示内容可作为完整 Prompt 文本交给前端
+     */
+    private static boolean isPromptContent(Object content) {
+        if (!(content instanceof String)) {
+            return false;
+        }
+
+        return StringUtils.isNotBlank((String) content);
     }
 
     /**

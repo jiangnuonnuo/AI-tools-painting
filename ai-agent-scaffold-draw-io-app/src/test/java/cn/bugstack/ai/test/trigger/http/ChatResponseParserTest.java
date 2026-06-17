@@ -175,4 +175,45 @@ public class ChatResponseParserTest {
         Assert.assertFalse(elementJsonObject.containsKey("styleType"));
     }
 
+    /**
+     * description: 验证 Prompt 响应会保留完整纯文本 Prompt，供前端复制和继续改写。
+     */
+    @Test
+    public void test_parse_should_support_prompt_text_content() {
+        String prompt = "你是一个后端工程师，请根据需求输出实现计划。";
+        String modelOutput = "{\"type\":\"prompt\",\"content\":\"" + prompt + "\",\"metadata\":{\"backendContent\":\"已生成 Prompt。\"}}";
+
+        ChatResponseDTO responseDTO = ChatResponseParser.parse(List.of(modelOutput));
+
+        Assert.assertEquals("prompt", responseDTO.getType());
+        Assert.assertEquals(prompt, responseDTO.getContent());
+        Assert.assertEquals("已生成 Prompt。", responseDTO.getMetadata().get("backendContent"));
+    }
+
+    /**
+     * description: 验证 Prompt JSON 被 Markdown 代码围栏包裹时仍可解析。
+     */
+    @Test
+    public void test_parse_should_extract_prompt_json_from_markdown_code_block() {
+        String modelOutput = "```json\n{\"type\":\"prompt\",\"content\":\"请重构当前提示词。\",\"metadata\":{}}\n```";
+
+        ChatResponseDTO responseDTO = ChatResponseParser.parse(List.of(modelOutput));
+
+        Assert.assertEquals("prompt", responseDTO.getType());
+        Assert.assertEquals("请重构当前提示词。", responseDTO.getContent());
+    }
+
+    /**
+     * description: 验证 Prompt 类型 content 为空时回退为 user 响应，避免前端拿到不可用 Prompt。
+     */
+    @Test
+    public void test_parse_should_fallback_to_user_when_prompt_content_is_blank() {
+        String modelOutput = "{\"type\":\"prompt\",\"content\":\"   \",\"metadata\":{}}";
+
+        ChatResponseDTO responseDTO = ChatResponseParser.parse(List.of(modelOutput));
+
+        Assert.assertEquals("user", responseDTO.getType());
+        Assert.assertEquals(modelOutput, responseDTO.getContent());
+    }
+
 }

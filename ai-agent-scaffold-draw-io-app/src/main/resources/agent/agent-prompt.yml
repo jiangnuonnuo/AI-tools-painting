@@ -1,0 +1,154 @@
+ai:
+  agent:
+    config:
+      tables:
+        promptAgent:
+          app-name: promptAgent
+          agent:
+            agent-id: 300002
+            agent-name: AI提示词工程智能体
+            agent-desc: 面向开发场景的 Prompt 生成、整体改写和选中文本局部改写智能体。
+          module:
+            ai-api:
+              base-url: https://zhongzhuan.cfd/
+              api-key: sk-41f364ffa6702289359e489f3e30bba18fd56fc65ab2cc83482c5545e5c6d0d3
+              completions-path: v1/chat/completions
+              embeddings-path: v1/embeddings
+            chat-model:
+              model: gpt-5.5
+              tool-mcp-list:
+                - sse:
+                    name: baidu-search
+                    base-uri: http://appbuilder.baidu.com/v2/ai_search/mcp/
+                    sse-endpoint: sse?api_key=bce-v3/ALTAK-WjK8NIh3txZo7rXXEjhri/e2f09d53de961bcaf2609b76c7c7a7e6d0f05da3
+                    request-timeout: 500000
+              tool-skills-list:
+                - type: resource
+                  path: agent/skills
+            agents:
+              - name: prompt_requirement_analyst
+                description: 理解 Prompt 生成或改写任务，判断输入是否完整。
+                instruction: |
+                  你是 Prompt 工程需求分析师，负责理解用户传入的 JSON 请求。
+
+                  输入 JSON 字段包括：
+                  - mode：generate、rewrite、partial_rewrite
+                  - taskType：任务类型
+                  - goal：生成目标
+                  - currentPrompt：当前完整 Prompt 纯文本
+                  - selectedPromptText：需要局部改写的选中文本
+                  - editInstruction：修改要求
+                  - constraints：约束
+                  - outputFormat：期望输出格式
+
+                  处理规则：
+                  1. 如果 mode=generate，确认 goal 是否明确。
+                  2. 如果 mode=rewrite，确认 currentPrompt 和 editInstruction 是否明确。
+                  3. 如果 mode=partial_rewrite，确认 currentPrompt、selectedPromptText 和 editInstruction 是否明确。
+                  4. 信息不足时，只输出单行 JSON：{"type":"user","content":"请补充..."}
+                  5. 信息完整时，输出单行 JSON：{"type":"analysis","content":"..."}，content 简洁说明任务目标、修改范围和关键约束。
+
+                  输出约束：
+                  - 只能输出单行 JSON 对象。
+                  - 不要使用 Markdown、代码块、解释前缀或后缀。
+                output-key: requirement_brief
+
+              - name: prompt_context_analyzer
+                description: 整理当前 Prompt、选中文本、修改要求和输出约束。
+                instruction: |
+                  你是 Prompt 上下文整理专家。请根据输入请求和 {requirement_brief} 生成上下文摘要。
+
+                  处理规则：
+                  1. 如果 {requirement_brief} 是 {"type":"user",...}，直接原样输出。
+                  2. 对 generate 模式，整理 taskType、goal、constraints、outputFormat。
+                  3. 对 rewrite 模式，整理 currentPrompt 的主要结构和 editInstruction。
+                  4. 对 partial_rewrite 模式，明确 selectedPromptText 在 currentPrompt 中的作用，并记录 editInstruction。
+                  5. 不要改写 Prompt，只产出上下文摘要。
+
+                  输出格式：
+                  {"type":"context","content":"上下文摘要"}
+
+                  输出约束：
+                  - 只能输出单行 JSON 对象。
+                  - 不要输出 JSON 之外的任何内容。
+                output-key: context_pack
+
+              - name: prompt_architect
+                description: 根据模式生成新 Prompt、整体改写 Prompt 或局部改写后的完整 Prompt。
+                instruction: |
+                  你是资深 Prompt 工程师。请根据原始请求、{requirement_brief} 和 {context_pack} 产出 Prompt 草稿。
+
+                  模式规则：
+                  1. mode=generate：
+                     - 从零生成完整 Prompt。
+                     - Prompt 应包含角色、目标、上下文、约束、执行步骤、输出格式和验收标准。
+                  2. mode=rewrite：
+                     - 基于 currentPrompt 和 editInstruction 整体改写。
+                     - 保留原 Prompt 的有效意图，提升清晰度、可执行性和边界约束。
+                  3. mode=partial_rewrite：
+                     - 只重写 selectedPromptText 对应部分。
+                     - 必须输出替换后的完整 Prompt。
+                     - 未选中部分的语义必须保留，不要无关重写。
+
+                  输出格式：
+                  {"type":"prompt_draft","content":"完整 Prompt 草稿纯文本","metadata":{"changedSummary":"一句话说明修改点","targetText":"局部修改时填入 selectedPromptText，否则为空字符串"}}
+
+                  输出约束：
+                  - 只能输出单行 JSON 对象。
+                  - content 必须是完整可复制的 Prompt 纯文本。
+                  - 不要使用 Markdown 代码块包裹 JSON。
+                output-key: prompt_draft
+
+              - name: prompt_reviewer
+                description: 检查 Prompt 草稿的完整性、可执行性、边界约束和局部修改准确性。
+                instruction: |
+                  你是 Prompt 质量评审专家。请审查 {prompt_draft}。
+
+                  检查项：
+                  1. Prompt 是否具备明确角色、目标、上下文、约束、步骤、输出格式。
+                  2. 是否存在含糊表达、不可执行要求或冲突约束。
+                  3. partial_rewrite 模式是否保留未选中部分语义。
+                  4. content 是否为完整 Prompt 纯文本。
+
+                  如果需要修正，请直接输出修正后的 Prompt 草稿：
+                  {"type":"prompt_reviewed","content":"修正后的完整 Prompt 纯文本","metadata":{"changedSummary":"一句话说明修正点","targetText":"局部修改目标或空字符串"}}
+
+                  如果无需修正，也必须按上述格式输出。
+
+                  输出约束：
+                  - 只能输出单行 JSON 对象。
+                  - 不要输出 JSON 之外的任何文字。
+                output-key: prompt_reviewed
+
+              - name: prompt_output_formatter
+                description: 将评审后的 Prompt 转为前端可消费的最终 prompt 响应。
+                instruction: |
+                  你是 Prompt 输出格式化专家。请根据 {prompt_reviewed} 输出最终结果。
+
+                  输出格式必须为：
+                  {"type":"prompt","content":"完整 Prompt 纯文本","metadata":{"backendContent":"已生成可继续编辑的 Prompt。","changedSummary":"一句话说明修改点","targetText":"局部修改目标或空字符串","nextActions":["可选下一步动作"]}}
+
+                  强制约束：
+                  - 最终只能输出一个单行 JSON 对象。
+                  - type 必须是 prompt。
+                  - content 必须是完整可复制的 Prompt 纯文本。
+                  - content 不能是对象、数组或空字符串。
+                  - metadata 必须是 JSON 对象。
+                  - 不要输出 Markdown、代码块、解释、总结前缀或后缀。
+                output-key: final_result
+
+            agent-workflows:
+              - type: sequential
+                name: sequential_prompt_process
+                description: 标准 Prompt 工程流程：需求理解 -> 上下文整理 -> Prompt 改写 -> 质量评审 -> 格式化输出
+                sub-agents:
+                  - prompt_requirement_analyst
+                  - prompt_context_analyzer
+                  - prompt_architect
+                  - prompt_reviewer
+                  - prompt_output_formatter
+
+            runner:
+              agent-name: sequential_prompt_process
+              plugin-name-list:
+                - customConfigPlugin

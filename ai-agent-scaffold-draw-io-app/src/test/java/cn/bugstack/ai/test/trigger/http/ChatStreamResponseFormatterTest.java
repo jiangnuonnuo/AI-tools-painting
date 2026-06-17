@@ -175,4 +175,62 @@ public class ChatStreamResponseFormatterTest {
         Assert.assertEquals("正在分析需求", chunk.getString("content"));
     }
 
+    /**
+     * description: 验证 Prompt 分析阶段 JSON 输出只作为过程结果，不触发最终渲染。
+     */
+    @Test
+    public void test_format_should_keep_prompt_analysis_as_process_result() {
+        String line = "{\"type\":\"analysis\",\"content\":\"需要改写提示词语气\"}";
+
+        ChatStreamResponseFormatter.FormatResult formatResult = ChatStreamResponseFormatter.format("analyzing", "prompt_requirement_analyst", line);
+        JSONObject wrapper = JSON.parseObject(formatResult.toNdjsonLine());
+        JSONObject chunk = wrapper.getJSONObject("chunk");
+
+        Assert.assertEquals("analyzing", wrapper.getString("phase"));
+        Assert.assertEquals("prompt_requirement_analyst", wrapper.getString("author"));
+        Assert.assertEquals("process_result", wrapper.getString("event"));
+        Assert.assertFalse(wrapper.getBooleanValue("renderable"));
+        Assert.assertTrue(wrapper.getBooleanValue("final"));
+        Assert.assertEquals("analysis", chunk.getString("type"));
+    }
+
+    /**
+     * description: 验证 Prompt 最终格式化智能体输出 prompt 类型时会产生 render_result。
+     */
+    @Test
+    public void test_format_should_emit_prompt_output_as_render_result() {
+        String line = "{\"type\":\"prompt\",\"content\":\"你是一个后端工程师，请输出实现方案。\",\"metadata\":{\"backendContent\":\"已生成 Prompt。\"}}";
+
+        ChatStreamResponseFormatter.FormatResult formatResult = ChatStreamResponseFormatter.format("formatting", "prompt_output_formatter", line);
+        JSONObject wrapper = JSON.parseObject(formatResult.toNdjsonLine());
+        JSONObject chunk = wrapper.getJSONObject("chunk");
+
+        Assert.assertEquals("formatting", wrapper.getString("phase"));
+        Assert.assertEquals("prompt_output_formatter", wrapper.getString("author"));
+        Assert.assertEquals("render_result", wrapper.getString("event"));
+        Assert.assertTrue(wrapper.getBooleanValue("renderable"));
+        Assert.assertTrue(wrapper.getBooleanValue("final"));
+        Assert.assertEquals("prompt", chunk.getString("type"));
+        Assert.assertEquals("你是一个后端工程师，请输出实现方案。", chunk.getString("content"));
+        Assert.assertEquals("已生成 Prompt。", chunk.getJSONObject("metadata").getString("backendContent"));
+    }
+
+    /**
+     * description: 验证 Prompt 智能体要求用户补充信息时保持 message 事件。
+     */
+    @Test
+    public void test_format_should_emit_prompt_user_request_as_message() {
+        String line = "{\"type\":\"user\",\"content\":\"请补充你希望修改的提示词片段。\"}";
+
+        ChatStreamResponseFormatter.FormatResult formatResult = ChatStreamResponseFormatter.format("analyzing", "prompt_requirement_analyst", line);
+        JSONObject wrapper = JSON.parseObject(formatResult.toNdjsonLine());
+        JSONObject chunk = wrapper.getJSONObject("chunk");
+
+        Assert.assertEquals("message", wrapper.getString("event"));
+        Assert.assertFalse(wrapper.getBooleanValue("renderable"));
+        Assert.assertTrue(wrapper.getBooleanValue("final"));
+        Assert.assertEquals("user", chunk.getString("type"));
+        Assert.assertEquals("请补充你希望修改的提示词片段。", chunk.getString("content"));
+    }
+
 }

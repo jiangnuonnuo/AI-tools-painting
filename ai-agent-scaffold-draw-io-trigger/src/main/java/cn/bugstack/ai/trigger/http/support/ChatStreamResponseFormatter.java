@@ -24,6 +24,7 @@ public class ChatStreamResponseFormatter {
     private static final String TYPE_DRAWIO = "drawio";
     private static final String TYPE_PPT = "ppt";
     private static final String TYPE_PPT_SLIDE = "ppt_slide";
+    private static final String TYPE_PROMPT = "prompt";
     private static final String TYPE_TOKEN = "token";
     private static final String TYPE_USER = "user";
     private static final String TYPE_STATUS = "status";
@@ -35,6 +36,11 @@ public class ChatStreamResponseFormatter {
     private static final String AUTHOR_PPT_GENERATOR = "agent_ppt_generator";
     private static final String AUTHOR_REVIEWER = "agent_reviewer";
     private static final String AUTHOR_PPT_REVIEWER = "agent_ppt_reviewer";
+    private static final String AUTHOR_PROMPT_REQUIREMENT_ANALYST = "prompt_requirement_analyst";
+    private static final String AUTHOR_PROMPT_CONTEXT_ANALYZER = "prompt_context_analyzer";
+    private static final String AUTHOR_PROMPT_ARCHITECT = "prompt_architect";
+    private static final String AUTHOR_PROMPT_REVIEWER = "prompt_reviewer";
+    private static final String AUTHOR_PROMPT_OUTPUT_FORMATTER = "prompt_output_formatter";
 
     /**
      * description: 格式化单行模型输出为统一流式协议。
@@ -82,6 +88,14 @@ public class ChatStreamResponseFormatter {
         // === reviewer 阶段：可发 render_result（最终结果）===
         if (isReviewer(author)) {
             return formatReviewerOutput(phase, author, jsonObject, type);
+        }
+
+        if (isPromptOutputFormatter(author)) {
+            return formatPromptOutput(phase, author, jsonObject, type);
+        }
+
+        if (isPromptProcessAgent(author)) {
+            return formatPromptProcessOutput(phase, author, jsonObject, type);
         }
 
         // === 未知 author：按 type 兜底 ===
@@ -208,6 +222,45 @@ public class ChatStreamResponseFormatter {
         return buildProcessResult(phase, author, jsonObject, type);
     }
 
+    // ======================== Prompt ========================
+
+    private static boolean isPromptProcessAgent(String author) {
+        return AUTHOR_PROMPT_REQUIREMENT_ANALYST.equals(author)
+                || AUTHOR_PROMPT_CONTEXT_ANALYZER.equals(author)
+                || AUTHOR_PROMPT_ARCHITECT.equals(author)
+                || AUTHOR_PROMPT_REVIEWER.equals(author);
+    }
+
+    private static boolean isPromptOutputFormatter(String author) {
+        return AUTHOR_PROMPT_OUTPUT_FORMATTER.equals(author);
+    }
+
+    /**
+     * description: Prompt 中间智能体输出只作为过程消息，避免前端提前接收最终 Prompt。
+     */
+    private static FormatResult formatPromptProcessOutput(String phase, String author, JSONObject jsonObject, String type) {
+        if (TYPE_USER.equals(type)) {
+            return buildMessage(phase, author, jsonObject);
+        }
+
+        return buildProcessResult(phase, author, jsonObject, type);
+    }
+
+    /**
+     * description: Prompt 格式化智能体输出最终 prompt 类型时作为可渲染结果。
+     */
+    private static FormatResult formatPromptOutput(String phase, String author, JSONObject jsonObject, String type) {
+        if (TYPE_PROMPT.equals(type)) {
+            return buildRenderResult(phase, author, jsonObject, false);
+        }
+
+        if (TYPE_USER.equals(type)) {
+            return buildMessage(phase, author, jsonObject);
+        }
+
+        return buildProcessResult(phase, author, jsonObject, type);
+    }
+
     // ======================== Unknown ========================
 
     /**
@@ -237,6 +290,10 @@ public class ChatStreamResponseFormatter {
 
         if (TYPE_DRAWIO.equals(type)) {
             sanitizeChunkContent(jsonObject, TYPE_DRAWIO);
+            return buildRenderResult(phase, author, jsonObject, false);
+        }
+
+        if (TYPE_PROMPT.equals(type)) {
             return buildRenderResult(phase, author, jsonObject, false);
         }
 

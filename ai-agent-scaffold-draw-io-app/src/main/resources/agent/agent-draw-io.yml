@@ -10,12 +10,12 @@ ai:
             agent-desc: 人 + AI + Draw.io，交互式对话完成 draw.io 绘图。
           module:
             ai-api:
-              base-url: https://dashscope.aliyuncs.com/compatible-mode/
-              api-key: sk-6066c48eb0a9478088dfc653a74216af
+              base-url: https://zhongzhuan.cfd/
+              api-key: sk-41f364ffa6702289359e489f3e30bba18fd56fc65ab2cc83482c5545e5c6d0d3
               completions-path: v1/chat/completions
               embeddings-path: v1/embeddings
             chat-model:
-              model: deepseek-v4-flash
+              model: gpt-5.5
               tool-mcp-list:
                 - sse:
                     name: baidu-search
