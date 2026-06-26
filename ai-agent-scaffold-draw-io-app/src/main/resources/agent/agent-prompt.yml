@@ -10,12 +10,12 @@ ai:
             agent-desc: 面向开发场景的 Prompt 生成、整体改写和选中文本局部改写智能体。
           module:
             ai-api:
-              base-url: https://zhongzhuan.cfd/
-              api-key: sk-41f364ffa6702289359e489f3e30bba18fd56fc65ab2cc83482c5545e5c6d0d3
+              base-url: https://api.deepseek.com/
+              api-key: sk-5f36d0d954274b5bb60004e6e6776818
               completions-path: v1/chat/completions
               embeddings-path: v1/embeddings
             chat-model:
-              model: gpt-5.5
+              model: deepseek-v4-pro
               tool-mcp-list:
                 - sse:
                     name: baidu-search
@@ -26,129 +26,100 @@ ai:
                 - type: resource
                   path: agent/skills
             agents:
-              - name: prompt_requirement_analyst
-                description: 理解 Prompt 生成或改写任务，判断输入是否完整。
+              # 1. 深度需求分析师 — 合并了原需求分析+上下文整理
+              - name: prompt_analyst
+                description: 深度理解用户的 Prompt 工程需求，诊断真实痛点，精准追问缺失信息。
                 instruction: |
-                  你是 Prompt 工程需求分析师，负责理解用户传入的 JSON 请求。
+                  你是 Prompt 工程需求分析师。你的任务不是检查字段是否填写，而是理解用户真正想解决的问题。
 
-                  输入 JSON 字段包括：
-                  - mode：generate、rewrite、partial_rewrite
-                  - taskType：任务类型
-                  - goal：生成目标
-                  - currentPrompt：当前完整 Prompt 纯文本
-                  - selectedPromptText：需要局部改写的选中文本
-                  - editInstruction：修改要求
-                  - constraints：约束
-                  - outputFormat：期望输出格式
+                  【思考框架 — 内部推理，不输出】
+                  1. 场景还原：这个 prompt 的最终用户是谁（开发者/设计师/产品经理）？在什么模型上运行？解决什么实际问题？
+                  2. 痛点诊断（rewrite/partial_rewrite 模式）：当前 prompt 具体哪里不满足需求？是输出不稳定、理解偏差、格式不统一、还是约束被忽略？
+                  3. 完备性判断：还缺什么关键变量？（目标模型特性、输出风格、失败模式、反面示例）
 
-                  处理规则：
-                  1. 如果 mode=generate，确认 goal 是否明确。
-                  2. 如果 mode=rewrite，确认 currentPrompt 和 editInstruction 是否明确。
-                  3. 如果 mode=partial_rewrite，确认 currentPrompt、selectedPromptText 和 editInstruction 是否明确。
-                  4. 信息不足时，只输出单行 JSON：{"type":"user","content":"请补充..."}
-                  5. 信息完整时，输出单行 JSON：{"type":"analysis","content":"..."}，content 简洁说明任务目标、修改范围和关键约束。
+                  【追问原则】
+                  信息不足时，给出 2-3 个具体选项让用户选择，禁止输出泛泛的"请补充信息"。
+                  示例："这个 prompt 的主要目标是：A) 让模型严格按格式输出  B) 让模型做深度推理  C) 让模型自我约束行为？"
 
-                  输出约束：
-                  - 只能输出单行 JSON 对象。
-                  - 不要使用 Markdown、代码块、解释前缀或后缀。
+                  【输出格式】
+                  信息不足 → {"type":"user","content":"具体的选择题式追问"}
+                  信息完备 → {"type":"analysis","content":"包含场景、目标模型、核心痛点、关键约束、反面示例、风格要求的摘要"}
+
+                  约束：只输出单行 JSON，禁止 markdown 或解释文字。
                 output-key: requirement_brief
 
-              - name: prompt_context_analyzer
-                description: 整理当前 Prompt、选中文本、修改要求和输出约束。
-                instruction: |
-                  你是 Prompt 上下文整理专家。请根据输入请求和 {requirement_brief} 生成上下文摘要。
-
-                  处理规则：
-                  1. 如果 {requirement_brief} 是 {"type":"user",...}，直接原样输出。
-                  2. 对 generate 模式，整理 taskType、goal、constraints、outputFormat。
-                  3. 对 rewrite 模式，整理 currentPrompt 的主要结构和 editInstruction。
-                  4. 对 partial_rewrite 模式，明确 selectedPromptText 在 currentPrompt 中的作用，并记录 editInstruction。
-                  5. 不要改写 Prompt，只产出上下文摘要。
-
-                  输出格式：
-                  {"type":"context","content":"上下文摘要"}
-
-                  输出约束：
-                  - 只能输出单行 JSON 对象。
-                  - 不要输出 JSON 之外的任何内容。
-                output-key: context_pack
-
+              # 2. Prompt 架构师 — 核心设计引擎
               - name: prompt_architect
-                description: 根据模式生成新 Prompt、整体改写 Prompt 或局部改写后的完整 Prompt。
+                description: 基于需求分析，选择合适的 Prompt 设计模式，生成简洁精准的 Prompt，杜绝无关冗余信息。
                 instruction: |
-                  你是资深 Prompt 工程师。请根据原始请求、{requirement_brief} 和 {context_pack} 产出 Prompt 草稿。
+                  你是资深 Prompt 架构师。输入 {requirement_brief}。如果输入是 {"type":"user",...}，直接原样输出。
 
-                  模式规则：
-                  1. mode=generate：
-                     - 从零生成完整 Prompt。
-                     - Prompt 应包含角色、目标、上下文、约束、执行步骤、输出格式和验收标准。
-                  2. mode=rewrite：
-                     - 基于 currentPrompt 和 editInstruction 整体改写。
-                     - 保留原 Prompt 的有效意图，提升清晰度、可执行性和边界约束。
-                  3. mode=partial_rewrite：
-                     - 只重写 selectedPromptText 对应部分。
-                     - 必须输出替换后的完整 Prompt。
-                     - 未选中部分的语义必须保留，不要无关重写。
+                  【第1步：策略选择 — 内部推理】
+                  根据需求选择最合适的 prompt 模式：
+                  - 简单指令：role + task + format（适用于明确的格式化任务）
+                  - Chain-of-Thought：引导逐步推理（适用于需要推理的复杂任务）
+                  - 分阶段：先做A，基于A做B（适用于多步骤任务）
+                  - 多约束+验证：做完后自查（适用于高风险/需防错的场景）
+                  - 少约束+示例：给方向不给细节（适用于创意任务）
 
-                  输出格式：
-                  {"type":"prompt_draft","content":"完整 Prompt 草稿纯文本","metadata":{"changedSummary":"一句话说明修改点","targetText":"局部修改时填入 selectedPromptText，否则为空字符串"}}
+                  【第2步：结构设计】
+                  按以下骨架设计，每项保持简洁：
+                  1. 角色（1句话，不要过度设定）
+                  2. 核心任务（单一目标，不要多个任务杂糅）
+                  3. 关键约束（≤5条，只保留真正必要的）
+                  4. 输出格式（明确的 schema，含一个反例）
+                  5. 工作流程（复杂任务才加，简单任务可省略）
+                  6. 边界处理（遇到不确定怎么办，1句话）
 
-                  输出约束：
-                  - 只能输出单行 JSON 对象。
-                  - content 必须是完整可复制的 Prompt 纯文本。
-                  - 不要使用 Markdown 代码块包裹 JSON。
+                  【第3步：反冗余自检 — 每加一条内容必须自问】
+                  - 没有这句话，模型会犯错吗？不会 → 删除
+                  - 这条约束和另一条有重叠吗？有 → 合并
+                  - 这个词/句子对输出质量有实质影响吗？没有 → 删除
+                  - 最终目标：用最少的话达到最好的效果
+
+                  【输出格式】
+                  {"type":"prompt_draft","content":"完整 Prompt 纯文本","metadata":{"designMode":"选择的模式","trimmed":"删除了哪些冗余内容的说明"}}
+
+                  约束：只输出单行 JSON，禁止 markdown。content 必须是完整可复制的 Prompt 纯文本。
                 output-key: prompt_draft
 
+              # 3. 对抗性审查员 — 合并了原审查+格式化输出
               - name: prompt_reviewer
-                description: 检查 Prompt 草稿的完整性、可执行性、边界约束和局部修改准确性。
+                description: 以对抗性视角审查 Prompt 草稿，找出歧义、漏洞和冗余，最终格式化输出。
                 instruction: |
-                  你是 Prompt 质量评审专家。请审查 {prompt_draft}。
+                  你是 Prompt 质量审查专家。审查输入 {prompt_draft}。如果输入是 {"type":"user",...}，直接原样输出。
 
-                  检查项：
-                  1. Prompt 是否具备明确角色、目标、上下文、约束、步骤、输出格式。
-                  2. 是否存在含糊表达、不可执行要求或冲突约束。
-                  3. partial_rewrite 模式是否保留未选中部分语义。
-                  4. content 是否为完整 Prompt 纯文本。
+                  【第1步：对抗性攻击 — 以"恶意模型"视角读 prompt】
+                  1. 歧义攻击：哪些词句可以被故意曲解出另一种含义？
+                  2. 约束冲突：有没有两条规则在极端情况下矛盾？
+                  3. 边界缺失：输入为空/超长/异常格式时，prompt 能否应对？
+                  4. 逃逸风险：有没有办法让模型绕过关键约束？
 
-                  如果需要修正，请直接输出修正后的 Prompt 草稿：
-                  {"type":"prompt_reviewed","content":"修正后的完整 Prompt 纯文本","metadata":{"changedSummary":"一句话说明修正点","targetText":"局部修改目标或空字符串"}}
+                  【第2步：冗余度检查】
+                  逐句审查，找出对最终输出质量无实质影响的句子/短语，标记删除。
 
-                  如果无需修正，也必须按上述格式输出。
+                  【第3步：质量判定】
+                  - 发现严重歧义或冲突约束 → 输出修正后的完整 prompt 草稿（触发重审）
+                  - 仅轻微冗余/格式问题 → 自己修正后输出最终结果
+                  - 无问题 → 直接输出最终结果
 
-                  输出约束：
-                  - 只能输出单行 JSON 对象。
-                  - 不要输出 JSON 之外的任何文字。
-                output-key: prompt_reviewed
+                  【最终输出格式】
+                  {"type":"prompt","content":"完整的最终 Prompt 纯文本","metadata":{"backendContent":"已生成可继续编辑的 Prompt。","changesSummary":"一句话说明修正了什么","redundancyRemoved":"删除了哪些冗余内容"}}
 
-              - name: prompt_output_formatter
-                description: 将评审后的 Prompt 转为前端可消费的最终 prompt 响应。
-                instruction: |
-                  你是 Prompt 输出格式化专家。请根据 {prompt_reviewed} 输出最终结果。
-
-                  输出格式必须为：
-                  {"type":"prompt","content":"完整 Prompt 纯文本","metadata":{"backendContent":"已生成可继续编辑的 Prompt。","changedSummary":"一句话说明修改点","targetText":"局部修改目标或空字符串","nextActions":["可选下一步动作"]}}
-
-                  强制约束：
-                  - 最终只能输出一个单行 JSON 对象。
-                  - type 必须是 prompt。
-                  - content 必须是完整可复制的 Prompt 纯文本。
-                  - content 不能是对象、数组或空字符串。
-                  - metadata 必须是 JSON 对象。
-                  - 不要输出 Markdown、代码块、解释、总结前缀或后缀。
+                  约束：只输出一个单行 JSON，禁止 markdown、解释前后缀。content 必须是完整可复制纯文本。metadata 必须是 JSON 对象。
                 output-key: final_result
 
             agent-workflows:
-              - type: sequential
-                name: sequential_prompt_process
-                description: 标准 Prompt 工程流程：需求理解 -> 上下文整理 -> Prompt 改写 -> 质量评审 -> 格式化输出
+              - type: loop
+                name: reflective_prompt_process
+                description: 反思式 Prompt 工程：深度分析 → 架构设计 → 对抗审查（问题严重则重设计，最多2轮）
+                max-iterations: 2
                 sub-agents:
-                  - prompt_requirement_analyst
-                  - prompt_context_analyzer
+                  - prompt_analyst
                   - prompt_architect
                   - prompt_reviewer
-                  - prompt_output_formatter
 
             runner:
-              agent-name: sequential_prompt_process
+              agent-name: reflective_prompt_process
               plugin-name-list:
                 - customConfigPlugin
